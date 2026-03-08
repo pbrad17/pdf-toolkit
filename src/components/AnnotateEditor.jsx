@@ -368,16 +368,25 @@ export default function AnnotateEditor() {
         {/* Mode toggle */}
         <div>
           <label className="text-xs font-medium text-steel-blue block mb-1">Mode</label>
-          <div className="flex gap-1">
-            {['text', 'stamp', 'draw', 'image', 'signature'].map((m) => (
+          <div className="grid grid-cols-3 gap-1">
+            {[
+              { id: 'text', label: 'Text', icon: 'M4 7V4h16v3 M9 20h6 M12 4v16' },
+              { id: 'stamp', label: 'Stamp', icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' },
+              { id: 'draw', label: 'Draw', icon: 'M12 19l7-7 3 3-7 7-3-3z M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z M2 2l7.586 7.586' },
+              { id: 'image', label: 'Image', icon: 'M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z M8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M21 15l-5-5L5 21' },
+              { id: 'signature', label: 'Sign', icon: 'M20 19.5c-1 .5-2.68.86-4 .86-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6c0 .81-.16 1.59-.44 2.3 M2 21l1.5-4.5L17 3l3 3L6.5 19.5z' },
+            ].map((m) => (
               <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
-                  mode === m ? 'bg-accent text-white border-accent' : 'border-border hover:border-accent'
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                className={`flex flex-col items-center gap-1 py-2 text-xs rounded border transition-colors ${
+                  mode === m.id ? 'bg-accent text-white border-accent' : 'border-border hover:border-accent'
                 }`}
               >
-                {m.charAt(0).toUpperCase() + m.slice(1)}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={m.icon}/>
+                </svg>
+                {m.label}
               </button>
             ))}
           </div>
