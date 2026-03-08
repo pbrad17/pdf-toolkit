@@ -4,6 +4,7 @@ import pdfjsLib from '../utils/pdfSetup'
 import AnnotationBox from './AnnotationBox'
 import RichTextEditor from './RichTextEditor'
 import { spansToPlainText, getBaseFontCSS, getBaseFamily } from '../utils/richTextUtils'
+import { SHAPES, FILLABLE_SHAPES, FLIPPABLE_SHAPES, getShapeSvgElements } from '../utils/shapeDefinitions'
 
 export default function AnnotateEditor() {
   const {
@@ -22,6 +23,11 @@ export default function AnnotateEditor() {
   const [selectedAnnotationId, setSelectedAnnotationId] = useState(null)
   const [sigAspectRatios, setSigAspectRatios] = useState({}) // dataUrl -> w/h ratio
   const [pageInputValue, setPageInputValue] = useState('1')
+  const [stampShape, setStampShape] = useState('rectangle')
+  const [stampStrokeColor, setStampStrokeColor] = useState('#000000')
+  const [stampStrokeWidth, setStampStrokeWidth] = useState(2)
+  const [stampFillColor, setStampFillColor] = useState('')
+  const [stampFlipped, setStampFlipped] = useState(false)
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
   const [viewport, setViewport] = useState(null)
@@ -137,6 +143,19 @@ export default function AnnotateEditor() {
         width: 0.2,
         height: 0.05,
       })
+    } else if (mode === 'stamp') {
+      addAnnotation(activePageId, {
+        type: 'stamp',
+        shape: stampShape,
+        x,
+        y,
+        width: 0.1,
+        height: ['line', 'arrow'].includes(stampShape) ? 0.002 : 0.08,
+        strokeColor: stampStrokeColor,
+        strokeWidth: stampStrokeWidth,
+        fillColor: FILLABLE_SHAPES.has(stampShape) && stampFillColor ? stampFillColor : null,
+        flipped: FLIPPABLE_SHAPES.has(stampShape) ? stampFlipped : false,
+      })
     } else if (mode === 'signature' && activeSigId) {
       const sig = signatures.find(s => s.id === activeSigId)
       if (sig) {
@@ -208,22 +227,17 @@ export default function AnnotateEditor() {
         <div>
           <label className="text-xs font-medium text-steel-blue block mb-1">Mode</label>
           <div className="flex gap-1">
-            <button
-              onClick={() => setMode('text')}
-              className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
-                mode === 'text' ? 'bg-accent text-white border-accent' : 'border-border hover:border-accent'
-              }`}
-            >
-              Text
-            </button>
-            <button
-              onClick={() => setMode('signature')}
-              className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
-                mode === 'signature' ? 'bg-accent text-white border-accent' : 'border-border hover:border-accent'
-              }`}
-            >
-              Signature
-            </button>
+            {['text', 'stamp', 'signature'].map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`flex-1 py-1.5 text-xs rounded border transition-colors ${
+                  mode === m ? 'bg-accent text-white border-accent' : 'border-border hover:border-accent'
+                }`}
+              >
+                {m.charAt(0).toUpperCase() + m.slice(1)}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -283,6 +297,91 @@ export default function AnnotateEditor() {
           </>
         )}
 
+        {mode === 'stamp' && (
+          <>
+            <div>
+              <label className="text-xs font-medium text-steel-blue block mb-1">Shape</label>
+              <div className="grid grid-cols-5 gap-1">
+                {SHAPES.map((s) => {
+                  const els = getShapeSvgElements(s.id, '#94a3b8', 2, 'none', false)
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => setStampShape(s.id)}
+                      title={s.label}
+                      className={`p-1.5 rounded border transition-colors ${
+                        stampShape === s.id ? 'border-accent ring-2 ring-accent/30 bg-accent/10' : 'border-border hover:border-accent'
+                      }`}
+                    >
+                      <svg viewBox="0 0 100 100" className="w-5 h-5 mx-auto">
+                        {els.map((item, i) => {
+                          const El = item.el
+                          return <El key={i} {...item.props} />
+                        })}
+                      </svg>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div>
+                <label className="text-xs font-medium text-steel-blue block mb-1">Color</label>
+                <input
+                  type="color"
+                  value={stampStrokeColor}
+                  onChange={(e) => setStampStrokeColor(e.target.value)}
+                  className="w-10 h-8 rounded border border-border cursor-pointer"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-medium text-steel-blue block mb-1">Width</label>
+                <input
+                  type="number"
+                  value={stampStrokeWidth}
+                  onChange={(e) => setStampStrokeWidth(Math.max(1, Math.min(10, Number(e.target.value))))}
+                  min={1}
+                  max={10}
+                  className="w-full px-2 py-1.5 rounded border border-border bg-dark-bg text-text-primary text-sm"
+                />
+              </div>
+            </div>
+            {FILLABLE_SHAPES.has(stampShape) && (
+              <div>
+                <label className="text-xs font-medium text-steel-blue flex items-center gap-1.5 mb-1">
+                  <input
+                    type="checkbox"
+                    checked={!!stampFillColor}
+                    onChange={(e) => setStampFillColor(e.target.checked ? '#ffffff' : '')}
+                    className="accent-accent"
+                  />
+                  Fill
+                </label>
+                {stampFillColor && (
+                  <input
+                    type="color"
+                    value={stampFillColor}
+                    onChange={(e) => setStampFillColor(e.target.value)}
+                    className="w-10 h-8 rounded border border-border cursor-pointer"
+                  />
+                )}
+              </div>
+            )}
+            {FLIPPABLE_SHAPES.has(stampShape) && (
+              <label className="text-xs font-medium text-steel-blue flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={stampFlipped}
+                  onChange={(e) => setStampFlipped(e.target.checked)}
+                  className="accent-accent"
+                />
+                Flip direction
+              </label>
+            )}
+            <p className="text-xs text-steel-blue">Select a shape, then click on the page to place it. Click to select, drag to move, use handles to resize.</p>
+          </>
+        )}
+
         {mode === 'signature' && (
           <>
             {signatures.length === 0 ? (
@@ -339,7 +438,7 @@ export default function AnnotateEditor() {
                   }`}
                 >
                   <span className="truncate flex-1">
-                    {ann.type === 'text' ? `"${ann.text}"` : 'Signature'}
+                    {ann.type === 'text' ? `"${ann.text}"` : ann.type === 'stamp' ? (ann.shape.charAt(0).toUpperCase() + ann.shape.slice(1)) : 'Signature'}
                   </span>
                   <button
                     onClick={(e) => { e.stopPropagation(); removeAnnotation(activePageId, ann.id); if (selectedAnnotationId === ann.id) setSelectedAnnotationId(null) }}

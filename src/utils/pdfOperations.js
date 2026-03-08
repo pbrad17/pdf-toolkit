@@ -1,5 +1,6 @@
 import { PDFDocument, degrees, rgb, StandardFonts } from 'pdf-lib'
 import { getSpans, resolveFontKey, getBaseFamily } from './richTextUtils'
+import { drawShapePdf } from './shapeDefinitions'
 
 export async function buildFinalPdf(documents, pages, annotations = {}) {
   const finalPdf = await PDFDocument.create()
@@ -78,6 +79,8 @@ export async function buildFinalPdf(documents, pages, annotations = {}) {
             xOffset += segWidth
           }
         }
+      } else if (ann.type === 'stamp') {
+        drawShapePdf(copiedPage, ann, pageW, pageH, rgb, hexToRgb)
       } else if (ann.type === 'signature') {
         // ann.dataUrl is a PNG data URL
         const pngBytes = dataUrlToBytes(ann.dataUrl)

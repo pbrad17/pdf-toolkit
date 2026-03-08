@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect, useState } from 'react'
 import { getSpans, getBaseFontCSS, getBaseFamily, spansToPlainText } from '../utils/richTextUtils'
+import { getShapeSvgElements } from '../utils/shapeDefinitions'
 import RichTextEditor from './RichTextEditor'
 
 const HANDLE_SIZE = 8
@@ -265,6 +266,24 @@ export default function AnnotationBox({
             pointerEvents: 'none',
           }}
         />
+      )}
+      {ann.type === 'stamp' && (
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          style={{
+            width: '100%',
+            height: '100%',
+            overflow: 'visible',
+            userSelect: 'none',
+            pointerEvents: 'none',
+          }}
+        >
+          {getShapeSvgElements(ann.shape, ann.strokeColor, ann.strokeWidth, ann.fillColor, ann.flipped).map((item, i) => {
+            const El = item.el
+            return <El key={i} {...item.props} />
+          })}
+        </svg>
       )}
 
       {/* Resize handles */}
