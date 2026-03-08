@@ -28,6 +28,7 @@ export default function AnnotateEditor() {
   const [stampStrokeWidth, setStampStrokeWidth] = useState(2)
   const [stampFillColor, setStampFillColor] = useState('')
   const [stampFlipped, setStampFlipped] = useState(false)
+  const copiedAnnotationRef = useRef(null)
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
   const [viewport, setViewport] = useState(null)
@@ -50,22 +51,40 @@ export default function AnnotateEditor() {
   const activePage = pages.find(p => p.id === activePageId)
   const pageAnnotations = activePageId ? (annotations[activePageId] || []) : []
 
-  // Keyboard: Escape to deselect, Delete to remove
+  // Keyboard: Escape to deselect, Delete to remove, Ctrl+C/V to copy/paste
   useEffect(() => {
     const handleKey = (e) => {
       if (e.key === 'Escape') {
         setSelectedAnnotationId(null)
       }
+      // Skip if user is typing in an input/textarea
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return
+
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedAnnotationId && activePageId) {
-        // Don't delete if user is typing in an input/textarea
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return
         removeAnnotation(activePageId, selectedAnnotationId)
         setSelectedAnnotationId(null)
+      }
+      // Copy selected annotation
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedAnnotationId) {
+        const ann = (annotations[activePageId] || []).find(a => a.id === selectedAnnotationId)
+        if (ann) {
+          copiedAnnotationRef.current = { ...ann }
+          e.preventDefault()
+        }
+      }
+      // Paste copied annotation
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && copiedAnnotationRef.current && activePageId) {
+        const src = copiedAnnotationRef.current
+        const offset = 0.02
+        const newAnn = { ...src, id: undefined, x: Math.min(src.x + offset, 0.95), y: Math.min(src.y + offset, 0.95) }
+        delete newAnn.id
+        addAnnotation(activePageId, newAnn)
+        e.preventDefault()
       }
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [selectedAnnotationId, activePageId, removeAnnotation])
+  }, [selectedAnnotationId, activePageId, removeAnnotation, annotations, addAnnotation])
 
   // Load signature aspect ratios
   useEffect(() => {
