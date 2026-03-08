@@ -3,7 +3,7 @@ import { useAppContext } from '../AppContext'
 import { countFormFields, flattenForms, buildFinalPdf } from '../utils/pdfOperations'
 
 export default function FlattenForms() {
-  const { documents, pages, setIsProcessing, isProcessing } = useAppContext()
+  const { documents, pages, annotations, setIsProcessing, isProcessing } = useAppContext()
   const [fieldCount, setFieldCount] = useState(null)
   const [status, setStatus] = useState('')
 
@@ -29,7 +29,7 @@ export default function FlattenForms() {
     setIsProcessing(true)
     setStatus('Building combined PDF...')
     try {
-      const combinedBytes = await buildFinalPdf(documents, pages)
+      const combinedBytes = await buildFinalPdf(documents, pages, annotations)
       setStatus('Flattening form fields...')
       const flattenedBytes = await flattenForms(combinedBytes)
 

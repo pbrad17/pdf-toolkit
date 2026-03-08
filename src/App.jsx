@@ -3,6 +3,8 @@ import UploadZone from './components/UploadZone'
 import ManagePages from './components/ManagePages'
 import FlattenForms from './components/FlattenForms'
 import ExtractPages from './components/ExtractPages'
+import AnnotateEditor from './components/AnnotateEditor'
+import SignaturePad from './components/SignaturePad'
 import PreviewModal from './components/PreviewModal'
 import PageGrid from './components/PageGrid'
 import { buildFinalPdf } from './utils/pdfOperations'
@@ -11,6 +13,8 @@ const TOOLS = [
   { id: 'upload', label: 'Upload', icon: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12' },
   { id: 'manage', label: 'Manage', icon: 'M4 6h16M4 12h16M4 18h16' },
   { id: 'extract', label: 'Extract', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z' },
+  { id: 'annotate', label: 'Annotate', icon: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' },
+  { id: 'signature', label: 'Signature', icon: 'M20 19.5c-1 .5-2.68.86-4 .86-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6c0 .81-.16 1.59-.44 2.3 M2 21l1.5-4.5L17 3l3 3L6.5 19.5z' },
   { id: 'flatten', label: 'Flatten', icon: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2 M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z' },
 ]
 
@@ -36,13 +40,13 @@ function ThemeToggle() {
 }
 
 function AppContent() {
-  const { activeTool, setActiveTool, pages, documents, isProcessing, setIsProcessing } = useAppContext()
+  const { activeTool, setActiveTool, pages, documents, annotations, isProcessing, setIsProcessing } = useAppContext()
 
   const handleDownload = async () => {
     if (pages.length === 0) return
     setIsProcessing(true)
     try {
-      const bytes = await buildFinalPdf(documents, pages)
+      const bytes = await buildFinalPdf(documents, pages, annotations)
       const blob = new Blob([bytes], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -134,6 +138,8 @@ function AppContent() {
           )}
           {activeTool === 'manage' && <ManagePages />}
           {activeTool === 'extract' && <ExtractPages />}
+          {activeTool === 'annotate' && <AnnotateEditor />}
+          {activeTool === 'signature' && <SignaturePad />}
           {activeTool === 'flatten' && <FlattenForms />}
         </div>
       </div>

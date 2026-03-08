@@ -3,7 +3,7 @@ import { buildExtractPdf } from '../utils/pdfOperations'
 import PageGrid from './PageGrid'
 
 export default function ExtractPages() {
-  const { pages, documents, selectedPages, selectAllPages, deselectAllPages, isProcessing, setIsProcessing } = useAppContext()
+  const { pages, documents, annotations, selectedPages, selectAllPages, deselectAllPages, isProcessing, setIsProcessing } = useAppContext()
 
   if (pages.length === 0) {
     return (
@@ -17,7 +17,7 @@ export default function ExtractPages() {
     if (selectedPages.size === 0) return
     setIsProcessing(true)
     try {
-      const bytes = await buildExtractPdf(documents, pages, selectedPages)
+      const bytes = await buildExtractPdf(documents, pages, selectedPages, annotations)
       const blob = new Blob([bytes], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')

@@ -34,6 +34,8 @@ export function AppProvider({ children }) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedPages, setSelectedPages] = useState(new Set())
   const [previewPageId, setPreviewPageId] = useState(null)
+  const [annotations, setAnnotations] = useState({})
+  const [signatures, setSignatures] = useState([])
   const blobUrlsRef = useRef([])
 
   useEffect(() => {
@@ -146,6 +148,37 @@ export function AppProvider({ children }) {
     setSelectedPages(new Set())
   }, [])
 
+  const addAnnotation = useCallback((pageId, annotation) => {
+    setAnnotations(prev => ({
+      ...prev,
+      [pageId]: [...(prev[pageId] || []), { ...annotation, id: Date.now() + Math.random() }],
+    }))
+  }, [])
+
+  const removeAnnotation = useCallback((pageId, annotationId) => {
+    setAnnotations(prev => ({
+      ...prev,
+      [pageId]: (prev[pageId] || []).filter(a => a.id !== annotationId),
+    }))
+  }, [])
+
+  const updateAnnotation = useCallback((pageId, annotationId, updates) => {
+    setAnnotations(prev => ({
+      ...prev,
+      [pageId]: (prev[pageId] || []).map(a =>
+        a.id === annotationId ? { ...a, ...updates } : a
+      ),
+    }))
+  }, [])
+
+  const addSignature = useCallback((dataUrl) => {
+    setSignatures(prev => [...prev, { id: Date.now(), dataUrl }])
+  }, [])
+
+  const removeSignature = useCallback((sigId) => {
+    setSignatures(prev => prev.filter(s => s.id !== sigId))
+  }, [])
+
   const clearAll = useCallback(() => {
     blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
     blobUrlsRef.current = []
@@ -153,6 +186,7 @@ export function AppProvider({ children }) {
     setPages([])
     setSelectedPages(new Set())
     setPreviewPageId(null)
+    setAnnotations({})
   }, [])
 
   useEffect(() => {
@@ -168,6 +202,8 @@ export function AppProvider({ children }) {
     isProcessing, setIsProcessing,
     selectedPages, toggleSelectPage, selectAllPages, deselectAllPages,
     previewPageId, setPreviewPageId,
+    annotations, addAnnotation, removeAnnotation, updateAnnotation,
+    signatures, addSignature, removeSignature,
     addDocument, removePages, reorderPage, movePage, rotatePage, clearAll,
   }
 
