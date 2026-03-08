@@ -1,7 +1,64 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAppContext } from '../AppContext'
 import pdfjsLib from '../utils/pdfSetup'
 import { buildFinalPdf, applyCrop } from '../utils/pdfOperations'
+
+function MarginSlider({ label, value, onChange }) {
+  const [localValue, setLocalValue] = useState(value)
+  const dragging = useRef(false)
+
+  // Sync from parent when not actively dragging
+  useEffect(() => {
+    if (!dragging.current) setLocalValue(value)
+  }, [value])
+
+  const handleSliderInput = (e) => {
+    const v = Number(e.target.value)
+    setLocalValue(v)
+    onChange(v)
+  }
+
+  const handlePointerDown = () => { dragging.current = true }
+  const handlePointerUp = () => { dragging.current = false }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs font-medium text-steel-blue">{label}</label>
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            min={0}
+            max={200}
+            value={localValue}
+            onChange={(e) => {
+              const v = Number(e.target.value) || 0
+              setLocalValue(v)
+              onChange(Math.max(0, Math.min(200, v)))
+            }}
+            onBlur={(e) => {
+              const v = Math.max(0, Math.min(200, Number(e.target.value) || 0))
+              setLocalValue(v)
+              onChange(v)
+            }}
+            className="w-14 text-right px-1.5 py-0.5 rounded border border-border bg-dark-bg text-text-primary text-xs tabular-nums"
+          />
+          <span className="text-xs text-steel-blue">pt</span>
+        </div>
+      </div>
+      <input
+        type="range"
+        min={0} max={200} step={1}
+        value={localValue}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onInput={handleSliderInput}
+        onChange={handleSliderInput}
+        className="w-full accent-accent cursor-pointer h-2"
+      />
+    </div>
+  )
+}
 
 export default function CropTool() {
   const { documents, pages, annotations, isProcessing, setIsProcessing } = useAppContext()
@@ -138,33 +195,9 @@ export default function CropTool() {
     )
   }
 
-  const MarginSlider = ({ label, value, setter }) => (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <label className="text-xs font-medium text-steel-blue">{label}</label>
-        <div className="flex items-center gap-1">
-          <input
-            type="number"
-            min={0}
-            max={200}
-            value={value}
-            onChange={(e) => setMargin(setter, e.target.value)}
-            onBlur={(e) => setMargin(setter, Math.max(0, Math.min(200, Number(e.target.value) || 0)))}
-            className="w-14 text-right px-1.5 py-0.5 rounded border border-border bg-dark-bg text-text-primary text-xs tabular-nums"
-          />
-          <span className="text-xs text-steel-blue">pt</span>
-        </div>
-      </div>
-      <input
-        type="range"
-        min={0} max={200} step={1}
-        value={value}
-        onInput={(e) => setMargin(setter, e.target.value)}
-        onChange={(e) => setMargin(setter, e.target.value)}
-        className="w-full accent-accent cursor-pointer h-2"
-      />
-    </div>
-  )
+  const handleMargin = useCallback((setter, value) => {
+    setMargin(setter, value)
+  }, [linked, top])
 
   return (
     <div className="flex gap-4" ref={containerRef}>
@@ -222,10 +255,10 @@ export default function CropTool() {
         </label>
 
         {/* Margin sliders */}
-        <MarginSlider label="Top" value={top} setter={setTop} />
-        <MarginSlider label="Bottom" value={bottom} setter={setBottom} />
-        <MarginSlider label="Left" value={left} setter={setLeft} />
-        <MarginSlider label="Right" value={right} setter={setRight} />
+        <MarginSlider label="Top" value={top} onChange={(v) => handleMargin(setTop, v)} />
+        <MarginSlider label="Bottom" value={bottom} onChange={(v) => handleMargin(setBottom, v)} />
+        <MarginSlider label="Left" value={left} onChange={(v) => handleMargin(setLeft, v)} />
+        <MarginSlider label="Right" value={right} onChange={(v) => handleMargin(setRight, v)} />
 
         <button
           onClick={handleApply}
