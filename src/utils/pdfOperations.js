@@ -1,4 +1,5 @@
 import { PDFDocument, degrees, rgb, StandardFonts } from 'pdf-lib'
+import { getSpans, resolveFontKey, getBaseFamily } from './richTextUtils'
 
 export async function buildFinalPdf(documents, pages, annotations = {}) {
   const finalPdf = await PDFDocument.create()
@@ -39,27 +40,44 @@ export async function buildFinalPdf(documents, pages, annotations = {}) {
         const boxWidth = (ann.width || 0.2) * pageW
         const boxHeight = (ann.height || 0.05) * pageH
         const lineHeight = size * 1.2
+        const topY = (1 - ann.y) * pageH
 
-        // Word-wrap text to fit within the bounding box
-        const font = await getFont(ann.fontFamily)
-        const lines = wrapText(ann.text, font, size, boxWidth)
+        const spans = getSpans(ann)
+        const baseFamily = getBaseFamily(ann.fontFamily)
+
+        // Wrap spans into lines
+        const lines = await wrapSpanText(spans, baseFamily, size, boxWidth, getFont)
         const maxLines = Math.floor(boxHeight / lineHeight)
         const clippedLines = lines.slice(0, maxLines || 1)
 
-        // PDF y is from bottom, annotation y is from top
-        const topY = (1 - ann.y) * pageH
-        clippedLines.forEach((line, i) => {
+        for (let i = 0; i < clippedLines.length; i++) {
           const lineY = topY - (i + 1) * lineHeight
-          if (lineY >= topY - boxHeight) {
-            copiedPage.drawText(line, {
-              x,
+          if (lineY < topY - boxHeight) break
+
+          let xOffset = x
+          for (const seg of clippedLines[i]) {
+            if (!seg.text) continue
+            const segFont = await getFont(seg.fontKey)
+            copiedPage.drawText(seg.text, {
+              x: xOffset,
               y: lineY,
               size,
-              font,
+              font: segFont,
               color: rgb(color.r, color.g, color.b),
             })
+            const segWidth = segFont.widthOfTextAtSize(seg.text, size)
+            // Draw underline
+            if (seg.underline) {
+              copiedPage.drawLine({
+                start: { x: xOffset, y: lineY - size * 0.15 },
+                end: { x: xOffset + segWidth, y: lineY - size * 0.15 },
+                thickness: size * 0.05,
+                color: rgb(color.r, color.g, color.b),
+              })
+            }
+            xOffset += segWidth
           }
-        })
+        }
       } else if (ann.type === 'signature') {
         // ann.dataUrl is a PNG data URL
         const pngBytes = dataUrlToBytes(ann.dataUrl)
@@ -113,6 +131,52 @@ function hexToRgb(hex) {
   return result
     ? { r: parseInt(result[1], 16) / 255, g: parseInt(result[2], 16) / 255, b: parseInt(result[3], 16) / 255 }
     : { r: 0, g: 0, b: 0 }
+}
+
+async function wrapSpanText(spans, baseFamily, fontSize, maxWidth, getFontFn) {
+  // lines = array of arrays of { text, fontKey, underline }
+  const lines = [[]]
+
+  for (const span of spans) {
+    const fontKey = resolveFontKey(baseFamily, span.bold, span.italic)
+    const font = await getFontFn(fontKey)
+    // Split on explicit newlines first
+    const parts = span.text.split('\n')
+
+    for (let p = 0; p < parts.length; p++) {
+      if (p > 0) lines.push([]) // newline → new line
+      const part = parts[p]
+      if (!part) continue
+
+      const words = part.split(/( +)/) // preserve spaces as separate tokens
+      for (const word of words) {
+        if (!word) continue
+        const currentLine = lines[lines.length - 1]
+        // Calculate current line width
+        let lineWidth = 0
+        for (const seg of currentLine) {
+          const segFont = await getFontFn(seg.fontKey)
+          lineWidth += segFont.widthOfTextAtSize(seg.text, fontSize)
+        }
+        const wordWidth = font.widthOfTextAtSize(word, fontSize)
+
+        if (lineWidth + wordWidth > maxWidth && currentLine.length > 0 && word.trim()) {
+          // Wrap to new line
+          lines.push([{ text: word, fontKey, underline: span.underline }])
+        } else {
+          // Append to current line — merge with last segment if same fontKey+underline
+          const last = currentLine[currentLine.length - 1]
+          if (last && last.fontKey === fontKey && last.underline === span.underline) {
+            last.text += word
+          } else {
+            currentLine.push({ text: word, fontKey, underline: span.underline })
+          }
+        }
+      }
+    }
+  }
+
+  return lines
 }
 
 function wrapText(text, font, fontSize, maxWidth) {

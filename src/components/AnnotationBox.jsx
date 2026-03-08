@@ -1,4 +1,6 @@
 import { useRef, useCallback, useEffect, useState } from 'react'
+import { getSpans, getBaseFontCSS, getBaseFamily, spansToPlainText } from '../utils/richTextUtils'
+import RichTextEditor from './RichTextEditor'
 
 const HANDLE_SIZE = 8
 const HALF = HANDLE_SIZE / 2
@@ -16,23 +18,6 @@ const HANDLES = [
 
 const MIN_SIZE_FRAC = 0.02
 
-function getFontStyles(fontFamily) {
-  const ff = fontFamily || 'Helvetica'
-  let family, weight = 'normal', style = 'normal'
-
-  if (ff.startsWith('Helvetica')) family = 'Helvetica, Arial, sans-serif'
-  else if (ff.startsWith('TimesRoman')) family = '"Times New Roman", Times, serif'
-  else if (ff.startsWith('Courier')) family = '"Courier New", Courier, monospace'
-  else if (ff === 'Symbol') family = 'Symbol, sans-serif'
-  else if (ff === 'ZapfDingbats') family = 'ZapfDingbats, sans-serif'
-  else family = 'Helvetica, Arial, sans-serif'
-
-  if (ff.includes('Bold')) weight = 'bold'
-  if (ff.includes('Oblique') || ff.includes('Italic')) style = 'italic'
-
-  return { fontFamily: family, fontWeight: weight, fontStyle: style }
-}
-
 export default function AnnotationBox({
   annotation,
   isSelected,
@@ -43,7 +28,6 @@ export default function AnnotationBox({
   aspectRatio, // for signatures
 }) {
   const boxRef = useRef(null)
-  const editRef = useRef(null)
   const dragState = useRef(null)
   const [isEditing, setIsEditing] = useState(false)
 
@@ -184,15 +168,18 @@ export default function AnnotationBox({
     }
   }, [ann.type])
 
-  const finishEditing = useCallback((value) => {
-    const trimmed = value.trim()
-    if (trimmed && trimmed !== ann.text) {
-      onUpdate({ text: trimmed })
-    }
-    setIsEditing(false)
-  }, [ann.text, onUpdate])
+  const baseFamily = ann.type === 'text' ? getBaseFamily(ann.fontFamily) : 'Helvetica'
+  const baseFontCSS = ann.type === 'text' ? getBaseFontCSS(baseFamily) : ''
+  const currentSpans = ann.type === 'text' ? getSpans(ann) : []
+  const disableBoldItalic = baseFamily === 'Symbol' || baseFamily === 'ZapfDingbats'
 
-  const fontStyles = ann.type === 'text' ? getFontStyles(ann.fontFamily) : {}
+  const handleRichTextChange = useCallback((newSpans) => {
+    onUpdate({ spans: newSpans, text: spansToPlainText(newSpans) })
+  }, [onUpdate])
+
+  const exitEditing = useCallback(() => {
+    setIsEditing(false)
+  }, [])
 
   return (
     <div
@@ -218,54 +205,52 @@ export default function AnnotationBox({
           style={{
             fontSize: `${ann.fontSize}px`,
             color: ann.color,
-            fontFamily: fontStyles.fontFamily,
-            fontWeight: fontStyles.fontWeight,
-            fontStyle: fontStyles.fontStyle,
+            fontFamily: baseFontCSS,
             width: '100%',
             height: '100%',
             overflow: 'hidden',
             wordWrap: 'break-word',
             overflowWrap: 'break-word',
+            whiteSpace: 'pre-wrap',
             lineHeight: 1.2,
             userSelect: 'none',
             pointerEvents: 'none',
           }}
         >
-          {ann.text}
+          {currentSpans.map((s, i) => (
+            <span
+              key={i}
+              style={{
+                fontWeight: s.bold ? 'bold' : 'normal',
+                fontStyle: s.italic ? 'italic' : 'normal',
+                textDecoration: s.underline ? 'underline' : 'none',
+              }}
+            >{s.text}</span>
+          ))}
         </div>
       )}
       {ann.type === 'text' && isEditing && (
-        <textarea
-          ref={editRef}
-          defaultValue={ann.text}
-          autoFocus
-          onBlur={(e) => finishEditing(e.target.value)}
-          onKeyDown={(e) => {
-            e.stopPropagation()
-            if (e.key === 'Escape') {
-              finishEditing(e.target.value)
-            }
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
+        <div
           style={{
             width: '100%',
             height: '100%',
-            fontSize: `${ann.fontSize}px`,
-            color: ann.color,
-            fontFamily: fontStyles.fontFamily,
-            fontWeight: fontStyles.fontWeight,
-            fontStyle: fontStyles.fontStyle,
-            lineHeight: 1.2,
-            border: 'none',
-            outline: 'none',
             background: 'rgba(255,255,255,0.9)',
-            resize: 'none',
-            padding: 0,
-            margin: 0,
-            boxSizing: 'border-box',
-            overflow: 'hidden',
+            position: 'relative',
           }}
-        />
+        >
+          <RichTextEditor
+            spans={currentSpans}
+            onChange={handleRichTextChange}
+            fontSize={ann.fontSize}
+            color={ann.color}
+            fontFamily={baseFontCSS}
+            autoFocus
+            onBlur={exitEditing}
+            onEscape={exitEditing}
+            toolbarPosition={ann.y < 0.08 ? 'bottom' : 'top'}
+            disableBoldItalic={disableBoldItalic}
+          />
+        </div>
       )}
       {ann.type === 'signature' && (
         <img

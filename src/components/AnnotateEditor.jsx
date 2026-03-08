@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useAppContext } from '../AppContext'
 import pdfjsLib from '../utils/pdfSetup'
 import AnnotationBox from './AnnotationBox'
+import RichTextEditor from './RichTextEditor'
+import { spansToPlainText, getBaseFontCSS, getBaseFamily } from '../utils/richTextUtils'
 
 export default function AnnotateEditor() {
   const {
@@ -11,7 +13,7 @@ export default function AnnotateEditor() {
 
   const [activePageId, setActivePageId] = useState(null)
   const [mode, setMode] = useState('text') // 'text' | 'signature'
-  const [textValue, setTextValue] = useState('')
+  const [textSpans, setTextSpans] = useState([{ text: '', bold: false, italic: false, underline: false }])
   const [fontSize, setFontSize] = useState(14)
   const [textColor, setTextColor] = useState('#000000')
   const [fontFamily, setFontFamily] = useState('Helvetica')
@@ -46,7 +48,7 @@ export default function AnnotateEditor() {
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedAnnotationId && activePageId) {
         // Don't delete if user is typing in an input/textarea
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return
         removeAnnotation(activePageId, selectedAnnotationId)
         setSelectedAnnotationId(null)
       }
@@ -117,12 +119,14 @@ export default function AnnotateEditor() {
     const x = (e.clientX - rect.left) / rect.width
     const y = (e.clientY - rect.top) / rect.height
 
-    if (mode === 'text' && textValue.trim()) {
+    const plainText = spansToPlainText(textSpans).trim()
+    if (mode === 'text' && plainText) {
       addAnnotation(activePageId, {
         type: 'text',
         x,
         y,
-        text: textValue.trim(),
+        spans: textSpans,
+        text: plainText,
         fontSize,
         color: textColor,
         fontFamily,
@@ -202,13 +206,17 @@ export default function AnnotateEditor() {
           <>
             <div>
               <label className="text-xs font-medium text-steel-blue block mb-1">Text</label>
-              <textarea
-                value={textValue}
-                onChange={(e) => setTextValue(e.target.value)}
-                placeholder="Type text to place..."
-                rows={6}
-                className="w-full px-2 py-1.5 rounded border border-border bg-dark-bg text-text-primary text-sm resize-none"
-              />
+              <div className="w-full min-h-[120px] px-2 py-1.5 rounded border border-border bg-dark-bg text-text-primary text-sm">
+                <RichTextEditor
+                  spans={textSpans}
+                  onChange={setTextSpans}
+                  fontSize={14}
+                  color="inherit"
+                  fontFamily={getBaseFontCSS(fontFamily)}
+                  toolbarPosition="bottom"
+                  disableBoldItalic={fontFamily === 'Symbol' || fontFamily === 'ZapfDingbats'}
+                />
+              </div>
             </div>
             <div>
               <label className="text-xs font-medium text-steel-blue block mb-1">Font</label>
@@ -218,17 +226,8 @@ export default function AnnotateEditor() {
                 className="w-full px-2 py-1.5 rounded border border-border bg-dark-bg text-text-primary text-sm"
               >
                 <option value="Helvetica">Helvetica</option>
-                <option value="HelveticaBold">Helvetica Bold</option>
-                <option value="HelveticaOblique">Helvetica Oblique</option>
-                <option value="HelveticaBoldOblique">Helvetica Bold Oblique</option>
                 <option value="TimesRoman">Times Roman</option>
-                <option value="TimesRomanBold">Times Roman Bold</option>
-                <option value="TimesRomanItalic">Times Roman Italic</option>
-                <option value="TimesRomanBoldItalic">Times Roman Bold Italic</option>
                 <option value="Courier">Courier</option>
-                <option value="CourierBold">Courier Bold</option>
-                <option value="CourierOblique">Courier Oblique</option>
-                <option value="CourierBoldOblique">Courier Bold Oblique</option>
                 <option value="Symbol">Symbol</option>
                 <option value="ZapfDingbats">ZapfDingbats</option>
               </select>
@@ -255,7 +254,7 @@ export default function AnnotateEditor() {
                 />
               </div>
             </div>
-            <p className="text-xs text-steel-blue">Type text above, then click on the page to place it. Click an annotation to select, drag to move, use handles to resize.</p>
+            <p className="text-xs text-steel-blue">Type text above (use B/I/U toolbar for formatting), then click on the page to place it. Double-click placed text to edit inline.</p>
           </>
         )}
 
