@@ -140,13 +140,28 @@ export default function CropTool() {
 
   const MarginSlider = ({ label, value, setter }) => (
     <div>
-      <label className="text-xs font-medium text-steel-blue block mb-1">{label} ({value}pt)</label>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs font-medium text-steel-blue">{label}</label>
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            min={0}
+            max={200}
+            value={value}
+            onChange={(e) => setMargin(setter, e.target.value)}
+            onBlur={(e) => setMargin(setter, Math.max(0, Math.min(200, Number(e.target.value) || 0)))}
+            className="w-14 text-right px-1.5 py-0.5 rounded border border-border bg-dark-bg text-text-primary text-xs tabular-nums"
+          />
+          <span className="text-xs text-steel-blue">pt</span>
+        </div>
+      </div>
       <input
         type="range"
         min={0} max={200} step={1}
         value={value}
+        onInput={(e) => setMargin(setter, e.target.value)}
         onChange={(e) => setMargin(setter, e.target.value)}
-        className="w-full accent-accent"
+        className="w-full accent-accent cursor-pointer h-2"
       />
     </div>
   )
