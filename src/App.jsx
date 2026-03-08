@@ -12,6 +12,11 @@ import SplitTool from './components/SplitTool'
 import FormFillTool from './components/FormFillTool'
 import BookmarkTool from './components/BookmarkTool'
 import GrayscaleTool from './components/GrayscaleTool'
+import ExportImagesTool from './components/ExportImagesTool'
+import BatesNumberingTool from './components/BatesNumberingTool'
+import PageResizeTool from './components/PageResizeTool'
+import RotatePagesTool from './components/RotatePagesTool'
+import CompressTool from './components/CompressTool'
 import PreviewModal from './components/PreviewModal'
 import PageGrid from './components/PageGrid'
 import { buildFinalPdf } from './utils/pdfOperations'
@@ -28,6 +33,11 @@ const TOOLS = [
   { id: 'crop', label: 'Crop', icon: 'M6 2v4H2v2h4v14h2V8h10V6H8V2H6zM18 22v-4h4v-2h-4V2h-2v14H6v2h10v4h2z' },
   { id: 'formfill', label: 'Fill Forms', icon: 'M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11' },
   { id: 'bookmarks', label: 'Bookmarks', icon: 'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z' },
+  { id: 'exportimg', label: 'To Images', icon: 'M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z M8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M21 15l-5-5L5 21' },
+  { id: 'bates', label: 'Bates #', icon: 'M4 7V4h16v3 M9 20h6 M12 4v16 M5 12h14' },
+  { id: 'resize', label: 'Resize', icon: 'M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7' },
+  { id: 'rotate', label: 'Rotate', icon: 'M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15' },
+  { id: 'compress', label: 'Compress', icon: 'M22 12H2 M12 2v20 M17 7l-5 5-5-5 M7 17l5-5 5 5' },
   { id: 'grayscale', label: 'Grayscale', icon: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 2v20' },
   { id: 'flatten', label: 'Flatten', icon: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2 M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z' },
 ]
@@ -160,6 +170,11 @@ function AppContent() {
           {activeTool === 'crop' && <CropTool />}
           {activeTool === 'formfill' && <FormFillTool />}
           {activeTool === 'bookmarks' && <BookmarkTool />}
+          {activeTool === 'exportimg' && <ExportImagesTool />}
+          {activeTool === 'bates' && <BatesNumberingTool />}
+          {activeTool === 'resize' && <PageResizeTool />}
+          {activeTool === 'rotate' && <RotatePagesTool />}
+          {activeTool === 'compress' && <CompressTool />}
           {activeTool === 'grayscale' && <GrayscaleTool />}
           {activeTool === 'flatten' && <FlattenForms />}
         </div>
