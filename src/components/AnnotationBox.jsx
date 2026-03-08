@@ -296,6 +296,29 @@ export default function AnnotationBox({
           })}
         </svg>
       )}
+      {ann.type === 'draw' && ann.points && (
+        <svg
+          viewBox="0 0 1 1"
+          preserveAspectRatio="none"
+          style={{
+            width: '100%',
+            height: '100%',
+            overflow: 'visible',
+            userSelect: 'none',
+            pointerEvents: 'none',
+          }}
+        >
+          <polyline
+            points={ann.points.map(([px, py]) => `${px},${py}`).join(' ')}
+            fill="none"
+            stroke={ann.strokeColor || '#000000'}
+            strokeWidth={ann.strokeWidth || 2}
+            vectorEffect="non-scaling-stroke"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
 
       {/* Resize handles */}
       {isSelected && HANDLES.map((h) => (

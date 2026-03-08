@@ -81,6 +81,25 @@ export async function buildFinalPdf(documents, pages, annotations = {}) {
         }
       } else if (ann.type === 'stamp') {
         drawShapePdf(copiedPage, ann, pageW, pageH, rgb, hexToRgb)
+      } else if (ann.type === 'draw' && ann.points && ann.points.length >= 2) {
+        const color = hexToRgb(ann.strokeColor || '#000000')
+        const borderColor = rgb(color.r, color.g, color.b)
+        const bboxW = (ann.width || 0.1) * pageW
+        const bboxH = (ann.height || 0.05) * pageH
+        const bboxX = ann.x * pageW
+        const bboxTopY = (1 - ann.y) * pageH
+        const scaledThickness = (ann.strokeWidth || 2) * (pageW / 700)
+
+        for (let i = 0; i < ann.points.length - 1; i++) {
+          const [x1n, y1n] = ann.points[i]
+          const [x2n, y2n] = ann.points[i + 1]
+          copiedPage.drawLine({
+            start: { x: bboxX + x1n * bboxW, y: bboxTopY - y1n * bboxH },
+            end: { x: bboxX + x2n * bboxW, y: bboxTopY - y2n * bboxH },
+            thickness: scaledThickness,
+            color: borderColor,
+          })
+        }
       } else if (ann.type === 'signature' || ann.type === 'image') {
         const imgBytes = dataUrlToBytes(ann.dataUrl)
         const isJpeg = ann.dataUrl.startsWith('data:image/jpeg') || ann.dataUrl.startsWith('data:image/jpg')

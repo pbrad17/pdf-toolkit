@@ -32,6 +32,11 @@ export default function AnnotateEditor() {
   const [stampStrokeWidth, setStampStrokeWidth] = useState(2)
   const [stampFillColor, setStampFillColor] = useState('')
   const [stampFlipped, setStampFlipped] = useState(false)
+  const [drawColor, setDrawColor] = useState('#000000')
+  const [drawWidth, setDrawWidth] = useState(2)
+  const [drawPreviewPoints, setDrawPreviewPoints] = useState(null) // raw frac points during active stroke
+  const isDrawingRef = useRef(false)
+  const drawPointsRef = useRef([])
   const imageInputRef = useRef(null)
   const copiedAnnotationRef = useRef(null)
   const canvasRef = useRef(null)
@@ -229,6 +234,68 @@ export default function AnnotateEditor() {
     }
   }, [activePageId, recordAnnotationChange])
 
+  // Freehand drawing handlers
+  const handleDrawPointerDown = useCallback((e) => {
+    if (!viewport || !activePageId || mode !== 'draw') return
+    if (selectedAnnotationId) { setSelectedAnnotationId(null); return }
+    const canvas = canvasRef.current
+    if (!canvas) return
+    canvas.setPointerCapture(e.pointerId)
+    const rect = canvas.getBoundingClientRect()
+    const pt = [(e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height]
+    isDrawingRef.current = true
+    drawPointsRef.current = [pt]
+    setDrawPreviewPoints([pt])
+  }, [viewport, activePageId, mode, selectedAnnotationId])
+
+  const handleDrawPointerMove = useCallback((e) => {
+    if (!isDrawingRef.current) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width
+    const y = (e.clientY - rect.top) / rect.height
+    const last = drawPointsRef.current[drawPointsRef.current.length - 1]
+    // Min distance filter (~3px)
+    const dx = (x - last[0]) * rect.width
+    const dy = (y - last[1]) * rect.height
+    if (dx * dx + dy * dy < 9) return
+    drawPointsRef.current.push([x, y])
+    setDrawPreviewPoints([...drawPointsRef.current])
+  }, [])
+
+  const handleDrawPointerUp = useCallback((e) => {
+    if (!isDrawingRef.current) return
+    isDrawingRef.current = false
+    setDrawPreviewPoints(null)
+    const canvas = canvasRef.current
+    if (canvas) canvas.releasePointerCapture(e.pointerId)
+    const rawPts = drawPointsRef.current
+    if (rawPts.length < 2 || !activePageId) return
+    // Compute bounding box
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+    for (const [px, py] of rawPts) {
+      if (px < minX) minX = px; if (px > maxX) maxX = px
+      if (py < minY) minY = py; if (py > maxY) maxY = py
+    }
+    // Add padding for stroke width
+    const pad = drawWidth * 2 / (viewport?.width || 700)
+    minX = Math.max(0, minX - pad); minY = Math.max(0, minY - pad)
+    maxX = Math.min(1, maxX + pad); maxY = Math.min(1, maxY + pad)
+    const bw = maxX - minX || 0.01
+    const bh = maxY - minY || 0.01
+    // Normalize points to 0-1 within bounding box
+    const points = rawPts.map(([px, py]) => [(px - minX) / bw, (py - minY) / bh])
+    addAnnotation(activePageId, {
+      type: 'draw',
+      x: minX, y: minY,
+      width: bw, height: bh,
+      points,
+      strokeColor: drawColor,
+      strokeWidth: drawWidth,
+    })
+  }, [activePageId, drawColor, drawWidth, viewport, addAnnotation])
+
   if (pages.length === 0) {
     return (
       <div className="text-center text-steel-blue py-12">
@@ -302,7 +369,7 @@ export default function AnnotateEditor() {
         <div>
           <label className="text-xs font-medium text-steel-blue block mb-1">Mode</label>
           <div className="flex gap-1">
-            {['text', 'stamp', 'image', 'signature'].map((m) => (
+            {['text', 'stamp', 'draw', 'image', 'signature'].map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
@@ -457,6 +524,34 @@ export default function AnnotateEditor() {
           </>
         )}
 
+        {mode === 'draw' && (
+          <>
+            <div className="flex gap-2">
+              <div>
+                <label className="text-xs font-medium text-steel-blue block mb-1">Color</label>
+                <input
+                  type="color"
+                  value={drawColor}
+                  onChange={(e) => setDrawColor(e.target.value)}
+                  className="w-10 h-8 rounded border border-border cursor-pointer"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-medium text-steel-blue block mb-1">Width</label>
+                <input
+                  type="number"
+                  value={drawWidth}
+                  onChange={(e) => setDrawWidth(Math.max(1, Math.min(10, Number(e.target.value))))}
+                  min={1}
+                  max={10}
+                  className="w-full px-2 py-1.5 rounded border border-border bg-dark-bg text-text-primary text-sm"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-steel-blue">Click and drag on the page to draw. Release to finish the stroke.</p>
+          </>
+        )}
+
         {mode === 'image' && (
           <>
             <div>
@@ -590,7 +685,7 @@ export default function AnnotateEditor() {
                   }`}
                 >
                   <span className="truncate flex-1">
-                    {ann.type === 'text' ? `"${ann.text}"` : ann.type === 'stamp' ? (ann.shape.charAt(0).toUpperCase() + ann.shape.slice(1)) : ann.type === 'image' ? 'Image' : 'Signature'}
+                    {ann.type === 'text' ? `"${ann.text}"` : ann.type === 'stamp' ? (ann.shape.charAt(0).toUpperCase() + ann.shape.slice(1)) : ann.type === 'draw' ? 'Drawing' : ann.type === 'image' ? 'Image' : 'Signature'}
                   </span>
                   <button
                     onClick={(e) => { e.stopPropagation(); removeAnnotation(activePageId, ann.id); if (selectedAnnotationId === ann.id) setSelectedAnnotationId(null) }}
@@ -612,9 +707,33 @@ export default function AnnotateEditor() {
         <div className="relative inline-block">
           <canvas
             ref={canvasRef}
-            onClick={handleCanvasClick}
+            onClick={mode !== 'draw' ? handleCanvasClick : undefined}
+            onPointerDown={mode === 'draw' ? handleDrawPointerDown : undefined}
+            onPointerMove={mode === 'draw' ? handleDrawPointerMove : undefined}
+            onPointerUp={mode === 'draw' ? handleDrawPointerUp : undefined}
             className="rounded shadow-lg cursor-crosshair border border-border"
+            style={mode === 'draw' ? { touchAction: 'none' } : undefined}
           />
+          {/* Draw preview overlay */}
+          {drawPreviewPoints && viewport && (
+            <svg
+              style={{
+                position: 'absolute', top: 0, left: 0,
+                width: viewport.width, height: viewport.height,
+                pointerEvents: 'none',
+              }}
+              viewBox={`0 0 ${viewport.width} ${viewport.height}`}
+            >
+              <polyline
+                points={drawPreviewPoints.map(([px, py]) => `${px * viewport.width},${py * viewport.height}`).join(' ')}
+                fill="none"
+                stroke={drawColor}
+                strokeWidth={drawWidth}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
           {/* Render interactive annotation boxes */}
           {viewport && pageAnnotations.map((ann) => (
             <AnnotationBox
