@@ -296,6 +296,29 @@ export default function AnnotationBox({
           })}
         </svg>
       )}
+      {ann.type === 'redact' && (
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            backgroundColor: '#000000',
+            userSelect: 'none',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+      {ann.type === 'highlight' && (
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            backgroundColor: ann.color || '#FFFF00',
+            opacity: ann.opacity ?? 0.35,
+            userSelect: 'none',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
       {ann.type === 'draw' && ann.points && (
         <svg
           viewBox="0 0 1 1"

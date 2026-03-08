@@ -1,4 +1,4 @@
-import { PDFDocument, degrees, rgb, StandardFonts } from 'pdf-lib'
+import { PDFDocument, degrees, rgb, StandardFonts, PDFName, PDFArray, PDFDict, PDFString, PDFNumber } from 'pdf-lib'
 import { getSpans, resolveFontKey, getBaseFamily } from './richTextUtils'
 import { drawShapePdf } from './shapeDefinitions'
 
@@ -79,6 +79,19 @@ export async function buildFinalPdf(documents, pages, annotations = {}) {
             xOffset += segWidth
           }
         }
+      } else if (ann.type === 'redact') {
+        const x = ann.x * pageW
+        const w = (ann.width || 0.15) * pageW
+        const h = (ann.height || 0.03) * pageH
+        const y = (1 - ann.y) * pageH - h
+        copiedPage.drawRectangle({ x, y, width: w, height: h, color: rgb(0, 0, 0) })
+      } else if (ann.type === 'highlight') {
+        const hColor = hexToRgb(ann.color || '#FFFF00')
+        const x = ann.x * pageW
+        const w = (ann.width || 0.15) * pageW
+        const h = (ann.height || 0.03) * pageH
+        const y = (1 - ann.y) * pageH - h
+        copiedPage.drawRectangle({ x, y, width: w, height: h, color: rgb(hColor.r, hColor.g, hColor.b), opacity: ann.opacity ?? 0.35 })
       } else if (ann.type === 'stamp') {
         drawShapePdf(copiedPage, ann, pageW, pageH, rgb, hexToRgb)
       } else if (ann.type === 'draw' && ann.points && ann.points.length >= 2) {
@@ -222,6 +235,128 @@ export async function applyWatermark(pdfBytes, config) {
         }
         page.drawImage(image, { x, y, width: imgW, height: imgH, opacity: opac })
       }
+    }
+  }
+
+  return doc.save()
+}
+
+export async function applyCrop(pdfBytes, margins) {
+  const doc = await PDFDocument.load(pdfBytes)
+  const pages = doc.getPages()
+  for (const page of pages) {
+    const { x, y, width, height } = page.getMediaBox()
+    const newX = x + margins.left
+    const newY = y + margins.bottom
+    const newW = width - margins.left - margins.right
+    const newH = height - margins.top - margins.bottom
+    if (newW > 0 && newH > 0) {
+      page.setMediaBox(newX, newY, newW, newH)
+      page.setCropBox(newX, newY, newW, newH)
+    }
+  }
+  return doc.save()
+}
+
+export async function addBookmarks(pdfBytes, bookmarks) {
+  const doc = await PDFDocument.load(pdfBytes)
+  const context = doc.context
+  const pdfPages = doc.getPages()
+
+  // Build outline items
+  const outlineItems = bookmarks.map((bm) => {
+    const pageIdx = Math.max(0, Math.min(pdfPages.length - 1, bm.page - 1))
+    const pageRef = pdfPages[pageIdx].ref
+    const { height } = pdfPages[pageIdx].getSize()
+
+    const itemDict = context.obj({
+      Title: PDFString.of(bm.title),
+      Dest: [pageRef, PDFName.of('XYZ'), null, PDFNumber.of(height), null],
+    })
+    return context.register(itemDict)
+  })
+
+  // Link items: each has /Next and /Prev pointers, plus /Parent
+  const outlineDict = context.obj({
+    Type: PDFName.of('Outlines'),
+    First: outlineItems[0],
+    Last: outlineItems[outlineItems.length - 1],
+    Count: PDFNumber.of(outlineItems.length),
+  })
+  const outlineRef = context.register(outlineDict)
+
+  for (let i = 0; i < outlineItems.length; i++) {
+    const item = context.lookup(outlineItems[i])
+    item.set(PDFName.of('Parent'), outlineRef)
+    if (i > 0) item.set(PDFName.of('Prev'), outlineItems[i - 1])
+    if (i < outlineItems.length - 1) item.set(PDFName.of('Next'), outlineItems[i + 1])
+  }
+
+  // Set the document's Outlines reference
+  const catalog = context.lookup(context.trailerInfo.Root)
+  catalog.set(PDFName.of('Outlines'), outlineRef)
+  // Open outline panel by default
+  catalog.set(PDFName.of('PageMode'), PDFName.of('UseOutlines'))
+
+  return doc.save()
+}
+
+function resolveHeaderFooterText(zone, pageNum, totalPages, dateStr, format) {
+  if (!zone || zone.type === 'none') return ''
+  if (zone.type === 'date') return dateStr
+  if (zone.type === 'custom') return zone.customText || ''
+  if (zone.type === 'pageNumber') {
+    switch (format) {
+      case 'Page 1': return `Page ${pageNum}`
+      case 'Page 1 of N': return `Page ${pageNum} of ${totalPages}`
+      case '1 of N': return `${pageNum} of ${totalPages}`
+      default: return `${pageNum}`
+    }
+  }
+  return ''
+}
+
+export async function applyHeadersFooters(pdfBytes, config) {
+  const doc = await PDFDocument.load(pdfBytes)
+  const font = await doc.embedFont(StandardFonts.Helvetica)
+  const pdfPages = doc.getPages()
+  const colorObj = hexToRgb(config.color || '#000000')
+  const textColor = rgb(colorObj.r, colorObj.g, colorObj.b)
+  const size = config.fontSize || 10
+  const mgn = config.margin || 36
+  const dateStr = new Date().toLocaleDateString()
+  const totalPages = pdfPages.length + (config.startingPage || 1) - 1
+
+  const zoneKeys = ['headerLeft', 'headerCenter', 'headerRight', 'footerLeft', 'footerCenter', 'footerRight']
+
+  for (let i = 0; i < pdfPages.length; i++) {
+    const page = pdfPages[i]
+    const { width, height } = page.getSize()
+    const rot = page.getRotation().angle % 360
+    const isRotated = rot === 90 || rot === 270
+    const w = isRotated ? height : width
+    const h = isRotated ? width : height
+    const pageNum = i + (config.startingPage || 1)
+
+    for (const key of zoneKeys) {
+      const zone = config.zones[key]
+      const text = resolveHeaderFooterText(zone, pageNum, totalPages, dateStr, config.pageNumFormat)
+      if (!text) continue
+
+      const textWidth = font.widthOfTextAtSize(text, size)
+      const isHeader = key.startsWith('header')
+      const y = isHeader ? h - mgn : mgn - size
+
+      let x
+      if (key.endsWith('Left')) {
+        x = mgn
+      } else if (key.endsWith('Center')) {
+        x = (w - textWidth) / 2
+      } else {
+        x = w - mgn - textWidth
+      }
+
+      page.drawText(text, { x, y, size, font, color: textColor })
     }
   }
 

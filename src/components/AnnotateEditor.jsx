@@ -34,6 +34,8 @@ export default function AnnotateEditor() {
   const [stampFlipped, setStampFlipped] = useState(false)
   const [drawColor, setDrawColor] = useState('#000000')
   const [drawWidth, setDrawWidth] = useState(2)
+  const [highlightColor, setHighlightColor] = useState('#FFFF00')
+  const [highlightOpacity, setHighlightOpacity] = useState(0.35)
   const [drawPreviewPoints, setDrawPreviewPoints] = useState(null) // raw frac points during active stroke
   const isDrawingRef = useRef(false)
   const drawPointsRef = useRef([])
@@ -196,6 +198,24 @@ export default function AnnotateEditor() {
         strokeWidth: stampStrokeWidth,
         fillColor: FILLABLE_SHAPES.has(stampShape) && stampFillColor ? stampFillColor : null,
         flipped: FLIPPABLE_SHAPES.has(stampShape) ? stampFlipped : false,
+      })
+    } else if (mode === 'redact') {
+      addAnnotation(activePageId, {
+        type: 'redact',
+        x,
+        y,
+        width: 0.15,
+        height: 0.03,
+      })
+    } else if (mode === 'highlight') {
+      addAnnotation(activePageId, {
+        type: 'highlight',
+        x,
+        y,
+        width: 0.15,
+        height: 0.03,
+        color: highlightColor,
+        opacity: highlightOpacity,
       })
     } else if (mode === 'image' && activeImageId) {
       const img = uploadedImages.find(i => i.id === activeImageId)
@@ -374,6 +394,8 @@ export default function AnnotateEditor() {
               { id: 'stamp', label: 'Stamp', icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' },
               { id: 'draw', label: 'Draw', icon: 'M12 19l7-7 3 3-7 7-3-3z M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z M2 2l7.586 7.586' },
               { id: 'image', label: 'Image', icon: 'M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z M8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M21 15l-5-5L5 21' },
+              { id: 'redact', label: 'Redact', icon: 'M3 3h18v18H3z M7 7h10v10H7z' },
+              { id: 'highlight', label: 'Hilite', icon: 'M9 2l3 5h9l-7 5 2.5 8L9 15l-7.5 5L4 12l-7-5h9z' },
               { id: 'signature', label: 'Sign', icon: 'M20 19.5c-1 .5-2.68.86-4 .86-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6c0 .81-.16 1.59-.44 2.3 M2 21l1.5-4.5L17 3l3 3L6.5 19.5z' },
             ].map((m) => (
               <button
@@ -561,6 +583,37 @@ export default function AnnotateEditor() {
           </>
         )}
 
+        {mode === 'redact' && (
+          <p className="text-xs text-steel-blue">Click on the page to place a black redaction box. Drag to move, use handles to resize. Redactions are opaque black — content underneath is permanently hidden when downloaded.</p>
+        )}
+
+        {mode === 'highlight' && (
+          <>
+            <div className="flex gap-2">
+              <div>
+                <label className="text-xs font-medium text-steel-blue block mb-1">Color</label>
+                <input
+                  type="color"
+                  value={highlightColor}
+                  onChange={(e) => setHighlightColor(e.target.value)}
+                  className="w-10 h-8 rounded border border-border cursor-pointer"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-medium text-steel-blue block mb-1">Opacity ({Math.round(highlightOpacity * 100)}%)</label>
+                <input
+                  type="range"
+                  min={0.1} max={0.8} step={0.05}
+                  value={highlightOpacity}
+                  onChange={(e) => setHighlightOpacity(Number(e.target.value))}
+                  className="w-full accent-accent"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-steel-blue">Click on the page to place a highlight. Drag to move, use handles to resize.</p>
+          </>
+        )}
+
         {mode === 'image' && (
           <>
             <div>
@@ -694,7 +747,7 @@ export default function AnnotateEditor() {
                   }`}
                 >
                   <span className="truncate flex-1">
-                    {ann.type === 'text' ? `"${ann.text}"` : ann.type === 'stamp' ? (ann.shape.charAt(0).toUpperCase() + ann.shape.slice(1)) : ann.type === 'draw' ? 'Drawing' : ann.type === 'image' ? 'Image' : 'Signature'}
+                    {ann.type === 'text' ? `"${ann.text}"` : ann.type === 'stamp' ? (ann.shape.charAt(0).toUpperCase() + ann.shape.slice(1)) : ann.type === 'draw' ? 'Drawing' : ann.type === 'redact' ? 'Redaction' : ann.type === 'highlight' ? 'Highlight' : ann.type === 'image' ? 'Image' : 'Signature'}
                   </span>
                   <button
                     onClick={(e) => { e.stopPropagation(); removeAnnotation(activePageId, ann.id); if (selectedAnnotationId === ann.id) setSelectedAnnotationId(null) }}
