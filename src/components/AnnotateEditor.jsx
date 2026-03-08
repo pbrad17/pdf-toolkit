@@ -20,6 +20,9 @@ export default function AnnotateEditor() {
   const [fontFamily, setFontFamily] = useState('Helvetica')
   const [activeSigId, setActiveSigId] = useState(null)
   const [sigWidth, setSigWidth] = useState(0.15)
+  const [uploadedImages, setUploadedImages] = useState([]) // [{ id, dataUrl, name }]
+  const [activeImageId, setActiveImageId] = useState(null)
+  const [imageWidth, setImageWidth] = useState(0.15)
   const [selectedAnnotationId, setSelectedAnnotationId] = useState(null)
   const [sigAspectRatios, setSigAspectRatios] = useState({}) // dataUrl -> w/h ratio
   const [pageInputValue, setPageInputValue] = useState('1')
@@ -28,6 +31,7 @@ export default function AnnotateEditor() {
   const [stampStrokeWidth, setStampStrokeWidth] = useState(2)
   const [stampFillColor, setStampFillColor] = useState('')
   const [stampFlipped, setStampFlipped] = useState(false)
+  const imageInputRef = useRef(null)
   const copiedAnnotationRef = useRef(null)
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
@@ -89,7 +93,7 @@ export default function AnnotateEditor() {
   // Load signature aspect ratios
   useEffect(() => {
     pageAnnotations.forEach(ann => {
-      if (ann.type === 'signature' && ann.dataUrl && !sigAspectRatios[ann.dataUrl]) {
+      if ((ann.type === 'signature' || ann.type === 'image') && ann.dataUrl && !sigAspectRatios[ann.dataUrl]) {
         const img = new Image()
         img.onload = () => {
           setSigAspectRatios(prev => ({ ...prev, [ann.dataUrl]: img.width / img.height }))
@@ -175,6 +179,17 @@ export default function AnnotateEditor() {
         fillColor: FILLABLE_SHAPES.has(stampShape) && stampFillColor ? stampFillColor : null,
         flipped: FLIPPABLE_SHAPES.has(stampShape) ? stampFlipped : false,
       })
+    } else if (mode === 'image' && activeImageId) {
+      const img = uploadedImages.find(i => i.id === activeImageId)
+      if (img) {
+        addAnnotation(activePageId, {
+          type: 'image',
+          x,
+          y,
+          dataUrl: img.dataUrl,
+          width: imageWidth,
+        })
+      }
     } else if (mode === 'signature' && activeSigId) {
       const sig = signatures.find(s => s.id === activeSigId)
       if (sig) {
@@ -246,7 +261,7 @@ export default function AnnotateEditor() {
         <div>
           <label className="text-xs font-medium text-steel-blue block mb-1">Mode</label>
           <div className="flex gap-1">
-            {['text', 'stamp', 'signature'].map((m) => (
+            {['text', 'stamp', 'image', 'signature'].map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
@@ -401,6 +416,83 @@ export default function AnnotateEditor() {
           </>
         )}
 
+        {mode === 'image' && (
+          <>
+            <div>
+              <label className="text-xs font-medium text-steel-blue block mb-1">Upload Image</label>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const reader = new FileReader()
+                  reader.onload = () => {
+                    const id = crypto.randomUUID()
+                    setUploadedImages(prev => [...prev, { id, dataUrl: reader.result, name: file.name }])
+                    setActiveImageId(id)
+                  }
+                  reader.readAsDataURL(file)
+                  e.target.value = ''
+                }}
+              />
+              <button
+                onClick={() => imageInputRef.current?.click()}
+                className="w-full py-1.5 text-xs rounded border border-border hover:border-accent transition-colors"
+              >
+                Choose File…
+              </button>
+            </div>
+            {uploadedImages.length > 0 && (
+              <>
+                <div>
+                  <label className="text-xs font-medium text-steel-blue block mb-1">Select Image</label>
+                  <div className="space-y-2">
+                    {uploadedImages.map((img) => (
+                      <div key={img.id} className="flex items-center gap-1">
+                        <button
+                          onClick={() => setActiveImageId(img.id)}
+                          className={`flex-1 p-2 rounded border transition-colors ${
+                            activeImageId === img.id ? 'border-accent ring-2 ring-accent/30' : 'border-border hover:border-accent'
+                          }`}
+                        >
+                          <img src={img.dataUrl} alt={img.name} className="h-10 mx-auto object-contain" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setUploadedImages(prev => prev.filter(i => i.id !== img.id))
+                            if (activeImageId === img.id) setActiveImageId(null)
+                          }}
+                          className="text-negative hover:text-negative/80 shrink-0 p-1"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-steel-blue block mb-1">Size ({Math.round(imageWidth * 100)}%)</label>
+                  <input
+                    type="range"
+                    min={0.05}
+                    max={0.5}
+                    step={0.01}
+                    value={imageWidth}
+                    onChange={(e) => setImageWidth(Number(e.target.value))}
+                    className="w-full accent-accent"
+                  />
+                </div>
+              </>
+            )}
+            <p className="text-xs text-steel-blue">Upload an image, then click on the page to place it.</p>
+          </>
+        )}
+
         {mode === 'signature' && (
           <>
             {signatures.length === 0 ? (
@@ -457,7 +549,7 @@ export default function AnnotateEditor() {
                   }`}
                 >
                   <span className="truncate flex-1">
-                    {ann.type === 'text' ? `"${ann.text}"` : ann.type === 'stamp' ? (ann.shape.charAt(0).toUpperCase() + ann.shape.slice(1)) : 'Signature'}
+                    {ann.type === 'text' ? `"${ann.text}"` : ann.type === 'stamp' ? (ann.shape.charAt(0).toUpperCase() + ann.shape.slice(1)) : ann.type === 'image' ? 'Image' : 'Signature'}
                   </span>
                   <button
                     onClick={(e) => { e.stopPropagation(); removeAnnotation(activePageId, ann.id); if (selectedAnnotationId === ann.id) setSelectedAnnotationId(null) }}
@@ -492,7 +584,7 @@ export default function AnnotateEditor() {
               onUpdate={(updates) => handleAnnotationUpdate(ann.id, updates)}
               canvasWidth={viewport.width}
               canvasHeight={viewport.height}
-              aspectRatio={ann.type === 'signature' ? sigAspectRatios[ann.dataUrl] : undefined}
+              aspectRatio={(ann.type === 'signature' || ann.type === 'image') ? sigAspectRatios[ann.dataUrl] : undefined}
             />
           ))}
         </div>

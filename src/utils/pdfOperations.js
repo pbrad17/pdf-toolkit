@@ -81,20 +81,22 @@ export async function buildFinalPdf(documents, pages, annotations = {}) {
         }
       } else if (ann.type === 'stamp') {
         drawShapePdf(copiedPage, ann, pageW, pageH, rgb, hexToRgb)
-      } else if (ann.type === 'signature') {
-        // ann.dataUrl is a PNG data URL
-        const pngBytes = dataUrlToBytes(ann.dataUrl)
-        const pngImage = await finalPdf.embedPng(pngBytes)
-        const imgDims = pngImage.scale(1)
-        const sigWidth = ann.width * pageW
-        const sigHeight = (imgDims.height / imgDims.width) * sigWidth
+      } else if (ann.type === 'signature' || ann.type === 'image') {
+        const imgBytes = dataUrlToBytes(ann.dataUrl)
+        const isJpeg = ann.dataUrl.startsWith('data:image/jpeg') || ann.dataUrl.startsWith('data:image/jpg')
+        const embeddedImage = isJpeg
+          ? await finalPdf.embedJpg(imgBytes)
+          : await finalPdf.embedPng(imgBytes)
+        const imgDims = embeddedImage.scale(1)
+        const imgWidth = ann.width * pageW
+        const imgHeight = (imgDims.height / imgDims.width) * imgWidth
         const x = ann.x * pageW
-        const y = (1 - ann.y) * pageH - sigHeight
-        copiedPage.drawImage(pngImage, {
+        const y = (1 - ann.y) * pageH - imgHeight
+        copiedPage.drawImage(embeddedImage, {
           x,
           y,
-          width: sigWidth,
-          height: sigHeight,
+          width: imgWidth,
+          height: imgHeight,
         })
       }
     }

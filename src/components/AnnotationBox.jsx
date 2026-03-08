@@ -33,7 +33,7 @@ export default function AnnotationBox({
   const [isEditing, setIsEditing] = useState(false)
 
   const ann = annotation
-  const isSig = ann.type === 'signature'
+  const isSig = ann.type === 'signature' || ann.type === 'image'
 
   // Exit edit mode when deselected
   useEffect(() => {
@@ -253,10 +253,10 @@ export default function AnnotationBox({
           />
         </div>
       )}
-      {ann.type === 'signature' && (
+      {(ann.type === 'signature' || ann.type === 'image') && (
         <img
           src={ann.dataUrl}
-          alt="Signature"
+          alt={ann.type === 'image' ? 'Image' : 'Signature'}
           draggable={false}
           style={{
             width: '100%',
