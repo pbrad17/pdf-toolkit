@@ -3,7 +3,14 @@ import { PDFDocument, degrees, rgb, StandardFonts } from 'pdf-lib'
 export async function buildFinalPdf(documents, pages, annotations = {}) {
   const finalPdf = await PDFDocument.create()
   const docCache = new Map()
-  const font = await finalPdf.embedFont(StandardFonts.Helvetica)
+  const fontCache = new Map()
+  async function getFont(fontFamily) {
+    const key = fontFamily || 'Helvetica'
+    if (!fontCache.has(key)) {
+      fontCache.set(key, await finalPdf.embedFont(StandardFonts[key]))
+    }
+    return fontCache.get(key)
+  }
 
   for (const page of pages) {
     if (!docCache.has(page.docId)) {
@@ -34,6 +41,7 @@ export async function buildFinalPdf(documents, pages, annotations = {}) {
         const lineHeight = size * 1.2
 
         // Word-wrap text to fit within the bounding box
+        const font = await getFont(ann.fontFamily)
         const lines = wrapText(ann.text, font, size, boxWidth)
         const maxLines = Math.floor(boxHeight / lineHeight)
         const clippedLines = lines.slice(0, maxLines || 1)

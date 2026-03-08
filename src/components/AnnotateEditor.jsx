@@ -14,6 +14,7 @@ export default function AnnotateEditor() {
   const [textValue, setTextValue] = useState('')
   const [fontSize, setFontSize] = useState(14)
   const [textColor, setTextColor] = useState('#000000')
+  const [fontFamily, setFontFamily] = useState('Helvetica')
   const [activeSigId, setActiveSigId] = useState(null)
   const [sigWidth, setSigWidth] = useState(0.15)
   const [selectedAnnotationId, setSelectedAnnotationId] = useState(null)
@@ -124,6 +125,7 @@ export default function AnnotateEditor() {
         text: textValue.trim(),
         fontSize,
         color: textColor,
+        fontFamily,
         width: 0.2,
         height: 0.05,
       })
@@ -204,9 +206,32 @@ export default function AnnotateEditor() {
                 value={textValue}
                 onChange={(e) => setTextValue(e.target.value)}
                 placeholder="Type text to place..."
-                rows={3}
+                rows={6}
                 className="w-full px-2 py-1.5 rounded border border-border bg-dark-bg text-text-primary text-sm resize-none"
               />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-steel-blue block mb-1">Font</label>
+              <select
+                value={fontFamily}
+                onChange={(e) => setFontFamily(e.target.value)}
+                className="w-full px-2 py-1.5 rounded border border-border bg-dark-bg text-text-primary text-sm"
+              >
+                <option value="Helvetica">Helvetica</option>
+                <option value="HelveticaBold">Helvetica Bold</option>
+                <option value="HelveticaOblique">Helvetica Oblique</option>
+                <option value="HelveticaBoldOblique">Helvetica Bold Oblique</option>
+                <option value="TimesRoman">Times Roman</option>
+                <option value="TimesRomanBold">Times Roman Bold</option>
+                <option value="TimesRomanItalic">Times Roman Italic</option>
+                <option value="TimesRomanBoldItalic">Times Roman Bold Italic</option>
+                <option value="Courier">Courier</option>
+                <option value="CourierBold">Courier Bold</option>
+                <option value="CourierOblique">Courier Oblique</option>
+                <option value="CourierBoldOblique">Courier Bold Oblique</option>
+                <option value="Symbol">Symbol</option>
+                <option value="ZapfDingbats">ZapfDingbats</option>
+              </select>
             </div>
             <div className="flex gap-2">
               <div className="flex-1">
