@@ -24,12 +24,15 @@ export default function AnnotationBox({
   isSelected,
   onSelect,
   onUpdate,
+  onDragEnd, // (prevValues, nextValues) => void — record single history entry
   canvasWidth,
   canvasHeight,
   aspectRatio, // for signatures
 }) {
   const boxRef = useRef(null)
   const dragState = useRef(null)
+  const dragStartSnap = useRef(null)
+  const lastDragUpdate = useRef(null)
   const [isEditing, setIsEditing] = useState(false)
 
   const ann = annotation
@@ -59,23 +62,30 @@ export default function AnnotationBox({
     const startY = e.clientY
     const origX = ann.x
     const origY = ann.y
+    const snap = { x: ann.x, y: ann.y }
+    lastDragUpdate.current = null
 
     const onMove = (ev) => {
       const dx = (ev.clientX - startX) / canvasWidth
       const dy = (ev.clientY - startY) / canvasHeight
       const newX = Math.max(0, Math.min(1 - (ann.width || 0.2), origX + dx))
       const newY = Math.max(0, Math.min(1 - (isSig ? (aspectRatio ? (ann.width || 0.15) / aspectRatio / (canvasHeight / canvasWidth) : 0.05) : (ann.height || 0.05)), origY + dy))
-      onUpdate({ x: newX, y: newY })
+      lastDragUpdate.current = { x: newX, y: newY }
+      onUpdate({ x: newX, y: newY }, true)
     }
 
     const onUp = () => {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      if (lastDragUpdate.current && onDragEnd) {
+        onDragEnd(snap, lastDragUpdate.current)
+      }
+      lastDragUpdate.current = null
     }
 
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [ann, canvasWidth, canvasHeight, onSelect, onUpdate, isSig, aspectRatio, isEditing])
+  }, [ann, canvasWidth, canvasHeight, onSelect, onUpdate, onDragEnd, isSig, aspectRatio, isEditing])
 
   const handleResizeStart = useCallback((e, handle) => {
     e.stopPropagation()
@@ -84,6 +94,9 @@ export default function AnnotationBox({
     const startX = e.clientX
     const startY = e.clientY
     const origAnn = { x: ann.x, y: ann.y, width: ann.width || 0.2, height: isSig ? height / canvasHeight : (ann.height || 0.05) }
+    const snap = { x: ann.x, y: ann.y, width: ann.width || 0.2 }
+    if (!isSig) snap.height = ann.height || 0.05
+    lastDragUpdate.current = null
 
     const onMove = (ev) => {
       const dxFrac = (ev.clientX - startX) / canvasWidth
@@ -96,11 +109,9 @@ export default function AnnotationBox({
 
       // Horizontal
       if (handle.x === 0) {
-        // Left handle: move x, shrink width
         newX = origAnn.x + dxFrac
         newW = origAnn.width - dxFrac
       } else if (handle.x === 1) {
-        // Right handle: grow width
         newW = origAnn.width + dxFrac
       }
 
@@ -132,13 +143,8 @@ export default function AnnotationBox({
 
       const updates = { x: newX, y: newY, width: newW }
       if (!isSig) updates.height = newH
-      // For signatures, height is derived from aspect ratio — only update width
       if (isSig && aspectRatio) {
-        // Aspect-ratio-preserving: if user dragged a corner, use width to derive
-        // For midpoint horizontal handles, already correct
-        // For midpoint vertical handles on signatures, treat as width change via aspect ratio
         if (handle.y !== 0.5 && handle.x === 0.5) {
-          // Vertical-only handle on signature: convert dy to width change
           const heightChange = dyFrac * (handle.y === 1 ? 1 : -1)
           const widthChange = heightChange * (canvasHeight / canvasWidth) * aspectRatio
           updates.width = Math.max(MIN_SIZE_FRAC, Math.min(1 - origAnn.x, origAnn.width + widthChange))
@@ -150,17 +156,22 @@ export default function AnnotationBox({
         }
       }
 
-      onUpdate(updates)
+      lastDragUpdate.current = updates
+      onUpdate(updates, true)
     }
 
     const onUp = () => {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      if (lastDragUpdate.current && onDragEnd) {
+        onDragEnd(snap, lastDragUpdate.current)
+      }
+      lastDragUpdate.current = null
     }
 
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [ann, canvasWidth, canvasHeight, height, isSig, aspectRatio, onUpdate])
+  }, [ann, canvasWidth, canvasHeight, height, isSig, aspectRatio, onUpdate, onDragEnd])
 
   const handleDoubleClick = useCallback((e) => {
     if (ann.type === 'text') {

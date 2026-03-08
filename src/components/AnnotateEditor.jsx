@@ -8,7 +8,8 @@ import { SHAPES, FILLABLE_SHAPES, FLIPPABLE_SHAPES, getShapeSvgElements } from '
 
 export default function AnnotateEditor() {
   const {
-    pages, documents, annotations, addAnnotation, removeAnnotation, updateAnnotation,
+    pages, documents, annotations, addAnnotation, removeAnnotation, updateAnnotation, recordAnnotationChange,
+    undo, redo, canUndo, canRedo,
     signatures, isProcessing,
   } = useAppContext()
 
@@ -55,7 +56,7 @@ export default function AnnotateEditor() {
   const activePage = pages.find(p => p.id === activePageId)
   const pageAnnotations = activePageId ? (annotations[activePageId] || []) : []
 
-  // Keyboard: Escape to deselect, Delete to remove, Ctrl+C/V to copy/paste
+  // Keyboard: Escape to deselect, Delete to remove, Ctrl+C/V to copy/paste, Ctrl+Z/Y to undo/redo
   useEffect(() => {
     const handleKey = (e) => {
       if (e.key === 'Escape') {
@@ -67,6 +68,18 @@ export default function AnnotateEditor() {
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedAnnotationId && activePageId) {
         removeAnnotation(activePageId, selectedAnnotationId)
         setSelectedAnnotationId(null)
+      }
+      // Redo (Ctrl+Shift+Z or Ctrl+Y) — check before undo
+      if ((e.ctrlKey || e.metaKey) && ((e.key === 'z' && e.shiftKey) || e.key === 'y')) {
+        e.preventDefault()
+        redo()
+        return
+      }
+      // Undo (Ctrl+Z)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault()
+        undo()
+        return
       }
       // Copy selected annotation
       if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedAnnotationId) {
@@ -88,7 +101,7 @@ export default function AnnotateEditor() {
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
-  }, [selectedAnnotationId, activePageId, removeAnnotation, annotations, addAnnotation])
+  }, [selectedAnnotationId, activePageId, removeAnnotation, annotations, addAnnotation, undo, redo])
 
   // Load signature aspect ratios
   useEffect(() => {
@@ -204,11 +217,17 @@ export default function AnnotateEditor() {
     }
   }
 
-  const handleAnnotationUpdate = useCallback((annId, updates) => {
+  const handleAnnotationUpdate = useCallback((annId, updates, skipHistory = false) => {
     if (activePageId) {
-      updateAnnotation(activePageId, annId, updates)
+      updateAnnotation(activePageId, annId, updates, skipHistory)
     }
   }, [activePageId, updateAnnotation])
+
+  const handleDragEnd = useCallback((annId, prevValues, nextValues) => {
+    if (activePageId) {
+      recordAnnotationChange(activePageId, annId, prevValues, nextValues)
+    }
+  }, [activePageId, recordAnnotationChange])
 
   if (pages.length === 0) {
     return (
@@ -255,6 +274,28 @@ export default function AnnotateEditor() {
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 1 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>
             </button>
           </div>
+        </div>
+
+        {/* Undo/Redo */}
+        <div className="flex gap-1">
+          <button
+            onClick={undo}
+            disabled={!canUndo}
+            title="Undo (Ctrl+Z)"
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded border border-border text-text-primary hover:border-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M7.793 2.232a.75.75 0 0 1-.025 1.06L3.622 7.25h10.003a5.375 5.375 0 0 1 0 10.75H10.75a.75.75 0 0 1 0-1.5h2.875a3.875 3.875 0 0 0 0-7.75H3.622l4.146 3.957a.75.75 0 0 1-1.036 1.085l-5.5-5.25a.75.75 0 0 1 0-1.085l5.5-5.25a.75.75 0 0 1 1.06.025Z" clipRule="evenodd" /></svg>
+            Undo
+          </button>
+          <button
+            onClick={redo}
+            disabled={!canRedo}
+            title="Redo (Ctrl+Y)"
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs rounded border border-border text-text-primary hover:border-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            Redo
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5"><path fillRule="evenodd" d="M12.207 2.232a.75.75 0 0 0 .025 1.06l4.146 3.958H6.375a5.375 5.375 0 0 0 0 10.75H9.25a.75.75 0 0 0 0-1.5H6.375a3.875 3.875 0 0 1 0-7.75h10.003l-4.146 3.957a.75.75 0 0 0 1.036 1.085l5.5-5.25a.75.75 0 0 0 0-1.085l-5.5-5.25a.75.75 0 0 0-1.06.025Z" clipRule="evenodd" /></svg>
+          </button>
         </div>
 
         {/* Mode toggle */}
@@ -581,7 +622,8 @@ export default function AnnotateEditor() {
               annotation={ann}
               isSelected={selectedAnnotationId === ann.id}
               onSelect={() => setSelectedAnnotationId(ann.id)}
-              onUpdate={(updates) => handleAnnotationUpdate(ann.id, updates)}
+              onUpdate={(updates, skipHistory) => handleAnnotationUpdate(ann.id, updates, skipHistory)}
+              onDragEnd={(prev, next) => handleDragEnd(ann.id, prev, next)}
               canvasWidth={viewport.width}
               canvasHeight={viewport.height}
               aspectRatio={(ann.type === 'signature' || ann.type === 'image') ? sigAspectRatios[ann.dataUrl] : undefined}

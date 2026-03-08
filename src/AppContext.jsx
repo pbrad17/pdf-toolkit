@@ -38,6 +38,13 @@ export function AppProvider({ children }) {
   const [signatures, setSignatures] = useState([])
   const blobUrlsRef = useRef([])
 
+  // Undo/Redo history
+  const HISTORY_LIMIT = 50
+  const undoStackRef = useRef([])
+  const redoStackRef = useRef([])
+  const [historyVersion, setHistoryVersion] = useState(0)
+  const bumpHistory = () => setHistoryVersion(v => v + 1)
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('pdftoolkit-theme', theme)
@@ -149,27 +156,96 @@ export function AppProvider({ children }) {
   }, [])
 
   const addAnnotation = useCallback((pageId, annotation) => {
+    const fullAnnotation = { ...annotation, id: Date.now() + Math.random() }
+    undoStackRef.current = [...undoStackRef.current, { type: 'add', pageId, annotation: fullAnnotation }].slice(-HISTORY_LIMIT)
+    redoStackRef.current = []
+    bumpHistory()
     setAnnotations(prev => ({
       ...prev,
-      [pageId]: [...(prev[pageId] || []), { ...annotation, id: Date.now() + Math.random() }],
+      [pageId]: [...(prev[pageId] || []), fullAnnotation],
     }))
   }, [])
 
   const removeAnnotation = useCallback((pageId, annotationId) => {
-    setAnnotations(prev => ({
-      ...prev,
-      [pageId]: (prev[pageId] || []).filter(a => a.id !== annotationId),
-    }))
+    setAnnotations(prev => {
+      const removed = (prev[pageId] || []).find(a => a.id === annotationId)
+      if (removed) {
+        undoStackRef.current = [...undoStackRef.current, { type: 'remove', pageId, annotation: removed }].slice(-HISTORY_LIMIT)
+        redoStackRef.current = []
+        bumpHistory()
+      }
+      return { ...prev, [pageId]: (prev[pageId] || []).filter(a => a.id !== annotationId) }
+    })
   }, [])
 
-  const updateAnnotation = useCallback((pageId, annotationId, updates) => {
-    setAnnotations(prev => ({
-      ...prev,
-      [pageId]: (prev[pageId] || []).map(a =>
-        a.id === annotationId ? { ...a, ...updates } : a
-      ),
-    }))
+  // skipHistory: true during drag/resize (continuous updates), false for discrete changes
+  const updateAnnotation = useCallback((pageId, annotationId, updates, skipHistory = false) => {
+    setAnnotations(prev => {
+      const current = (prev[pageId] || []).find(a => a.id === annotationId)
+      if (current && !skipHistory) {
+        const prevValues = {}
+        for (const key of Object.keys(updates)) prevValues[key] = current[key]
+        undoStackRef.current = [...undoStackRef.current, { type: 'update', pageId, annotationId, prev: prevValues, next: { ...updates } }].slice(-HISTORY_LIMIT)
+        redoStackRef.current = []
+        bumpHistory()
+      }
+      return { ...prev, [pageId]: (prev[pageId] || []).map(a => a.id === annotationId ? { ...a, ...updates } : a) }
+    })
   }, [])
+
+  // Record a single history entry for a completed drag/resize
+  const recordAnnotationChange = useCallback((pageId, annotationId, prevValues, nextValues) => {
+    undoStackRef.current = [...undoStackRef.current, { type: 'update', pageId, annotationId, prev: prevValues, next: nextValues }].slice(-HISTORY_LIMIT)
+    redoStackRef.current = []
+    bumpHistory()
+  }, [])
+
+  const undo = useCallback(() => {
+    const stack = undoStackRef.current
+    if (stack.length === 0) return
+    const entry = stack[stack.length - 1]
+    undoStackRef.current = stack.slice(0, -1)
+    redoStackRef.current = [...redoStackRef.current, entry]
+    bumpHistory()
+
+    setAnnotations(prev => {
+      if (entry.type === 'add') {
+        return { ...prev, [entry.pageId]: (prev[entry.pageId] || []).filter(a => a.id !== entry.annotation.id) }
+      }
+      if (entry.type === 'remove') {
+        return { ...prev, [entry.pageId]: [...(prev[entry.pageId] || []), entry.annotation] }
+      }
+      if (entry.type === 'update') {
+        return { ...prev, [entry.pageId]: (prev[entry.pageId] || []).map(a => a.id === entry.annotationId ? { ...a, ...entry.prev } : a) }
+      }
+      return prev
+    })
+  }, [])
+
+  const redo = useCallback(() => {
+    const stack = redoStackRef.current
+    if (stack.length === 0) return
+    const entry = stack[stack.length - 1]
+    redoStackRef.current = stack.slice(0, -1)
+    undoStackRef.current = [...undoStackRef.current, entry]
+    bumpHistory()
+
+    setAnnotations(prev => {
+      if (entry.type === 'add') {
+        return { ...prev, [entry.pageId]: [...(prev[entry.pageId] || []), entry.annotation] }
+      }
+      if (entry.type === 'remove') {
+        return { ...prev, [entry.pageId]: (prev[entry.pageId] || []).filter(a => a.id !== entry.annotation.id) }
+      }
+      if (entry.type === 'update') {
+        return { ...prev, [entry.pageId]: (prev[entry.pageId] || []).map(a => a.id === entry.annotationId ? { ...a, ...entry.next } : a) }
+      }
+      return prev
+    })
+  }, [])
+
+  const canUndo = undoStackRef.current.length > 0
+  const canRedo = redoStackRef.current.length > 0
 
   const addSignature = useCallback((dataUrl) => {
     setSignatures(prev => [...prev, { id: Date.now(), dataUrl }])
@@ -187,6 +263,9 @@ export function AppProvider({ children }) {
     setSelectedPages(new Set())
     setPreviewPageId(null)
     setAnnotations({})
+    undoStackRef.current = []
+    redoStackRef.current = []
+    bumpHistory()
   }, [])
 
   useEffect(() => {
@@ -202,7 +281,8 @@ export function AppProvider({ children }) {
     isProcessing, setIsProcessing,
     selectedPages, toggleSelectPage, selectAllPages, deselectAllPages,
     previewPageId, setPreviewPageId,
-    annotations, addAnnotation, removeAnnotation, updateAnnotation,
+    annotations, addAnnotation, removeAnnotation, updateAnnotation, recordAnnotationChange,
+    undo, redo, canUndo, canRedo,
     signatures, addSignature, removeSignature,
     addDocument, removePages, reorderPage, movePage, rotatePage, clearAll,
   }
