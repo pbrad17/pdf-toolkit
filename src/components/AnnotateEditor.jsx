@@ -395,7 +395,7 @@ export default function AnnotateEditor() {
               { id: 'draw', label: 'Draw', icon: 'M12 19l7-7 3 3-7 7-3-3z M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z M2 2l7.586 7.586' },
               { id: 'image', label: 'Image', icon: 'M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z M8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M21 15l-5-5L5 21' },
               { id: 'redact', label: 'Redact', icon: 'M3 3h18v18H3z M7 7h10v10H7z' },
-              { id: 'highlight', label: 'Hilite', icon: 'M9 2l3 5h9l-7 5 2.5 8L9 15l-7.5 5L4 12l-7-5h9z' },
+              { id: 'highlight', label: 'Highlight', icon: 'M15.22 4.97l3.81 3.81M4 20l1.39-4.17 12.42-12.42a1.5 1.5 0 0 1 2.12 0l1.67 1.67a1.5 1.5 0 0 1 0 2.12L9.17 19.61z M4 20l2.5-.83' },
               { id: 'signature', label: 'Sign', icon: 'M20 19.5c-1 .5-2.68.86-4 .86-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6c0 .81-.16 1.59-.44 2.3 M2 21l1.5-4.5L17 3l3 3L6.5 19.5z' },
             ].map((m) => (
               <button
