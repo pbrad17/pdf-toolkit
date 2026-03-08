@@ -27,16 +27,30 @@ export async function buildFinalPdf(documents, pages, annotations = {}) {
     for (const ann of pageAnnotations) {
       if (ann.type === 'text') {
         const color = hexToRgb(ann.color || '#000000')
-        // ann.x and ann.y are fractions (0-1) of the rendered viewport
-        // PDF coordinate system: origin at bottom-left
+        const size = ann.fontSize || 14
         const x = ann.x * pageW
-        const y = (1 - ann.y) * pageH - ann.fontSize
-        copiedPage.drawText(ann.text, {
-          x,
-          y,
-          size: ann.fontSize || 14,
-          font,
-          color: rgb(color.r, color.g, color.b),
+        const boxWidth = (ann.width || 0.2) * pageW
+        const boxHeight = (ann.height || 0.05) * pageH
+        const lineHeight = size * 1.2
+
+        // Word-wrap text to fit within the bounding box
+        const lines = wrapText(ann.text, font, size, boxWidth)
+        const maxLines = Math.floor(boxHeight / lineHeight)
+        const clippedLines = lines.slice(0, maxLines || 1)
+
+        // PDF y is from bottom, annotation y is from top
+        const topY = (1 - ann.y) * pageH
+        clippedLines.forEach((line, i) => {
+          const lineY = topY - (i + 1) * lineHeight
+          if (lineY >= topY - boxHeight) {
+            copiedPage.drawText(line, {
+              x,
+              y: lineY,
+              size,
+              font,
+              color: rgb(color.r, color.g, color.b),
+            })
+          }
         })
       } else if (ann.type === 'signature') {
         // ann.dataUrl is a PNG data URL
@@ -91,6 +105,25 @@ function hexToRgb(hex) {
   return result
     ? { r: parseInt(result[1], 16) / 255, g: parseInt(result[2], 16) / 255, b: parseInt(result[3], 16) / 255 }
     : { r: 0, g: 0, b: 0 }
+}
+
+function wrapText(text, font, fontSize, maxWidth) {
+  const words = text.split(/\s+/)
+  const lines = []
+  let currentLine = ''
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word
+    const testWidth = font.widthOfTextAtSize(testLine, fontSize)
+    if (testWidth > maxWidth && currentLine) {
+      lines.push(currentLine)
+      currentLine = word
+    } else {
+      currentLine = testLine
+    }
+  }
+  if (currentLine) lines.push(currentLine)
+  return lines.length > 0 ? lines : ['']
 }
 
 function dataUrlToBytes(dataUrl) {

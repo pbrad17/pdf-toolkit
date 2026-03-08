@@ -1,0 +1,229 @@
+import { useRef, useCallback, useEffect, useState } from 'react'
+
+const HANDLE_SIZE = 8
+const HALF = HANDLE_SIZE / 2
+
+const HANDLES = [
+  { id: 'tl', x: 0, y: 0, cursor: 'nwse-resize' },
+  { id: 'tm', x: 0.5, y: 0, cursor: 'ns-resize' },
+  { id: 'tr', x: 1, y: 0, cursor: 'nesw-resize' },
+  { id: 'ml', x: 0, y: 0.5, cursor: 'ew-resize' },
+  { id: 'mr', x: 1, y: 0.5, cursor: 'ew-resize' },
+  { id: 'bl', x: 0, y: 1, cursor: 'nesw-resize' },
+  { id: 'bm', x: 0.5, y: 1, cursor: 'ns-resize' },
+  { id: 'br', x: 1, y: 1, cursor: 'nwse-resize' },
+]
+
+const MIN_SIZE_FRAC = 0.02
+
+export default function AnnotationBox({
+  annotation,
+  isSelected,
+  onSelect,
+  onUpdate,
+  canvasWidth,
+  canvasHeight,
+  aspectRatio, // for signatures
+}) {
+  const boxRef = useRef(null)
+  const dragState = useRef(null)
+
+  const ann = annotation
+  const isSig = ann.type === 'signature'
+
+  // Compute pixel dimensions
+  const width = (ann.width || 0.2) * canvasWidth
+  const height = isSig
+    ? (aspectRatio ? width / aspectRatio : width * 0.4)
+    : (ann.height || 0.05) * canvasHeight
+
+  const left = ann.x * canvasWidth
+  const top = ann.y * canvasHeight
+
+  const handleMouseDown = useCallback((e) => {
+    e.stopPropagation()
+    e.preventDefault()
+    onSelect()
+
+    const startX = e.clientX
+    const startY = e.clientY
+    const origX = ann.x
+    const origY = ann.y
+
+    const onMove = (ev) => {
+      const dx = (ev.clientX - startX) / canvasWidth
+      const dy = (ev.clientY - startY) / canvasHeight
+      const newX = Math.max(0, Math.min(1 - (ann.width || 0.2), origX + dx))
+      const newY = Math.max(0, Math.min(1 - (isSig ? (aspectRatio ? (ann.width || 0.15) / aspectRatio / (canvasHeight / canvasWidth) : 0.05) : (ann.height || 0.05)), origY + dy))
+      onUpdate({ x: newX, y: newY })
+    }
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [ann, canvasWidth, canvasHeight, onSelect, onUpdate, isSig, aspectRatio])
+
+  const handleResizeStart = useCallback((e, handle) => {
+    e.stopPropagation()
+    e.preventDefault()
+
+    const startX = e.clientX
+    const startY = e.clientY
+    const origAnn = { x: ann.x, y: ann.y, width: ann.width || 0.2, height: isSig ? height / canvasHeight : (ann.height || 0.05) }
+
+    const onMove = (ev) => {
+      const dxFrac = (ev.clientX - startX) / canvasWidth
+      const dyFrac = (ev.clientY - startY) / canvasHeight
+
+      let newX = origAnn.x
+      let newY = origAnn.y
+      let newW = origAnn.width
+      let newH = origAnn.height
+
+      // Horizontal
+      if (handle.x === 0) {
+        // Left handle: move x, shrink width
+        newX = origAnn.x + dxFrac
+        newW = origAnn.width - dxFrac
+      } else if (handle.x === 1) {
+        // Right handle: grow width
+        newW = origAnn.width + dxFrac
+      }
+
+      // Vertical (only for text)
+      if (!isSig) {
+        if (handle.y === 0) {
+          newY = origAnn.y + dyFrac
+          newH = origAnn.height - dyFrac
+        } else if (handle.y === 1) {
+          newH = origAnn.height + dyFrac
+        }
+      }
+
+      // Enforce minimums
+      if (newW < MIN_SIZE_FRAC) {
+        if (handle.x === 0) newX = origAnn.x + origAnn.width - MIN_SIZE_FRAC
+        newW = MIN_SIZE_FRAC
+      }
+      if (!isSig && newH < MIN_SIZE_FRAC) {
+        if (handle.y === 0) newY = origAnn.y + origAnn.height - MIN_SIZE_FRAC
+        newH = MIN_SIZE_FRAC
+      }
+
+      // Clamp to canvas
+      newX = Math.max(0, Math.min(1 - newW, newX))
+      newY = Math.max(0, newY)
+      newW = Math.min(1 - newX, newW)
+      if (!isSig) newH = Math.min(1 - newY, newH)
+
+      const updates = { x: newX, y: newY, width: newW }
+      if (!isSig) updates.height = newH
+      // For signatures, height is derived from aspect ratio — only update width
+      if (isSig && aspectRatio) {
+        // Aspect-ratio-preserving: if user dragged a corner, use width to derive
+        // For midpoint horizontal handles, already correct
+        // For midpoint vertical handles on signatures, treat as width change via aspect ratio
+        if (handle.y !== 0.5 && handle.x === 0.5) {
+          // Vertical-only handle on signature: convert dy to width change
+          const heightChange = dyFrac * (handle.y === 1 ? 1 : -1)
+          const widthChange = heightChange * (canvasHeight / canvasWidth) * aspectRatio
+          updates.width = Math.max(MIN_SIZE_FRAC, Math.min(1 - origAnn.x, origAnn.width + widthChange))
+          if (handle.y === 0) {
+            const derivedH = updates.width / aspectRatio * (canvasWidth / canvasHeight)
+            updates.y = origAnn.y + origAnn.height - derivedH
+          }
+          updates.x = origAnn.x
+        }
+      }
+
+      onUpdate(updates)
+    }
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [ann, canvasWidth, canvasHeight, height, isSig, aspectRatio, onUpdate])
+
+  return (
+    <div
+      ref={boxRef}
+      onMouseDown={handleMouseDown}
+      onClick={(e) => { e.stopPropagation(); onSelect() }}
+      className="absolute"
+      style={{
+        left: `${left}px`,
+        top: `${top}px`,
+        width: `${width}px`,
+        height: `${height}px`,
+        cursor: isSelected ? 'move' : 'pointer',
+        border: isSelected ? '1.5px dashed #3b82f6' : '1.5px solid transparent',
+        boxSizing: 'border-box',
+        zIndex: isSelected ? 20 : 10,
+      }}
+    >
+      {/* Content */}
+      {ann.type === 'text' && (
+        <div
+          style={{
+            fontSize: `${ann.fontSize}px`,
+            color: ann.color,
+            width: '100%',
+            height: '100%',
+            overflow: 'hidden',
+            wordWrap: 'break-word',
+            overflowWrap: 'break-word',
+            lineHeight: 1.2,
+            userSelect: 'none',
+            pointerEvents: 'none',
+          }}
+        >
+          {ann.text}
+        </div>
+      )}
+      {ann.type === 'signature' && (
+        <img
+          src={ann.dataUrl}
+          alt="Signature"
+          draggable={false}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            userSelect: 'none',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
+      {/* Resize handles */}
+      {isSelected && HANDLES.map((h) => (
+        <div
+          key={h.id}
+          onMouseDown={(e) => handleResizeStart(e, h)}
+          style={{
+            position: 'absolute',
+            left: `${h.x * 100}%`,
+            top: `${h.y * 100}%`,
+            width: `${HANDLE_SIZE}px`,
+            height: `${HANDLE_SIZE}px`,
+            marginLeft: `-${HALF}px`,
+            marginTop: `-${HALF}px`,
+            borderRadius: '50%',
+            backgroundColor: '#3b82f6',
+            border: '1.5px solid white',
+            cursor: h.cursor,
+            zIndex: 30,
+          }}
+        />
+      ))}
+    </div>
+  )
+}

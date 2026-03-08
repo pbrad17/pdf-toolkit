@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useAppContext } from '../AppContext'
 import pdfjsLib from '../utils/pdfSetup'
+import AnnotationBox from './AnnotationBox'
 
 export default function AnnotateEditor() {
   const {
-    pages, documents, annotations, addAnnotation, removeAnnotation,
+    pages, documents, annotations, addAnnotation, removeAnnotation, updateAnnotation,
     signatures, isProcessing,
   } = useAppContext()
 
@@ -14,7 +15,9 @@ export default function AnnotateEditor() {
   const [fontSize, setFontSize] = useState(14)
   const [textColor, setTextColor] = useState('#000000')
   const [activeSigId, setActiveSigId] = useState(null)
-  const [sigWidth, setSigWidth] = useState(0.15) // fraction of page width
+  const [sigWidth, setSigWidth] = useState(0.15)
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState(null)
+  const [sigAspectRatios, setSigAspectRatios] = useState({}) // dataUrl -> w/h ratio
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
   const [viewport, setViewport] = useState(null)
@@ -26,8 +29,43 @@ export default function AnnotateEditor() {
     }
   }, [pages, activePageId])
 
+  // Deselect when switching pages
+  useEffect(() => {
+    setSelectedAnnotationId(null)
+  }, [activePageId])
+
   const activePage = pages.find(p => p.id === activePageId)
   const pageAnnotations = activePageId ? (annotations[activePageId] || []) : []
+
+  // Keyboard: Escape to deselect, Delete to remove
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.key === 'Escape') {
+        setSelectedAnnotationId(null)
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedAnnotationId && activePageId) {
+        // Don't delete if user is typing in an input/textarea
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return
+        removeAnnotation(activePageId, selectedAnnotationId)
+        setSelectedAnnotationId(null)
+      }
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [selectedAnnotationId, activePageId, removeAnnotation])
+
+  // Load signature aspect ratios
+  useEffect(() => {
+    pageAnnotations.forEach(ann => {
+      if (ann.type === 'signature' && ann.dataUrl && !sigAspectRatios[ann.dataUrl]) {
+        const img = new Image()
+        img.onload = () => {
+          setSigAspectRatios(prev => ({ ...prev, [ann.dataUrl]: img.width / img.height }))
+        }
+        img.src = ann.dataUrl
+      }
+    })
+  }, [pageAnnotations])
 
   // Render the page
   useEffect(() => {
@@ -67,6 +105,13 @@ export default function AnnotateEditor() {
 
   const handleCanvasClick = (e) => {
     if (!viewport || !activePageId) return
+
+    // If we have a selected annotation, deselect it
+    if (selectedAnnotationId) {
+      setSelectedAnnotationId(null)
+      return
+    }
+
     const rect = canvasRef.current.getBoundingClientRect()
     const x = (e.clientX - rect.left) / rect.width
     const y = (e.clientY - rect.top) / rect.height
@@ -79,6 +124,8 @@ export default function AnnotateEditor() {
         text: textValue.trim(),
         fontSize,
         color: textColor,
+        width: 0.2,
+        height: 0.05,
       })
     } else if (mode === 'signature' && activeSigId) {
       const sig = signatures.find(s => s.id === activeSigId)
@@ -93,6 +140,12 @@ export default function AnnotateEditor() {
       }
     }
   }
+
+  const handleAnnotationUpdate = useCallback((annId, updates) => {
+    if (activePageId) {
+      updateAnnotation(activePageId, annId, updates)
+    }
+  }, [activePageId, updateAnnotation])
 
   if (pages.length === 0) {
     return (
@@ -147,12 +200,12 @@ export default function AnnotateEditor() {
           <>
             <div>
               <label className="text-xs font-medium text-steel-blue block mb-1">Text</label>
-              <input
-                type="text"
+              <textarea
                 value={textValue}
                 onChange={(e) => setTextValue(e.target.value)}
                 placeholder="Type text to place..."
-                className="w-full px-2 py-1.5 rounded border border-border bg-dark-bg text-text-primary text-sm"
+                rows={3}
+                className="w-full px-2 py-1.5 rounded border border-border bg-dark-bg text-text-primary text-sm resize-none"
               />
             </div>
             <div className="flex gap-2">
@@ -177,7 +230,7 @@ export default function AnnotateEditor() {
                 />
               </div>
             </div>
-            <p className="text-xs text-steel-blue">Type text above, then click on the page to place it.</p>
+            <p className="text-xs text-steel-blue">Type text above, then click on the page to place it. Click an annotation to select, drag to move, use handles to resize.</p>
           </>
         )}
 
@@ -215,7 +268,7 @@ export default function AnnotateEditor() {
                     className="w-full accent-accent"
                   />
                 </div>
-                <p className="text-xs text-steel-blue">Select a signature, then click on the page to place it.</p>
+                <p className="text-xs text-steel-blue">Select a signature, then click on the page to place it. Click an annotation to select, drag to move, use handles to resize.</p>
               </>
             )}
           </>
@@ -229,12 +282,18 @@ export default function AnnotateEditor() {
             </label>
             <div className="space-y-1 max-h-40 overflow-auto">
               {pageAnnotations.map((ann) => (
-                <div key={ann.id} className="flex items-center justify-between p-1.5 rounded bg-alt-bg text-xs">
+                <div
+                  key={ann.id}
+                  onClick={() => setSelectedAnnotationId(ann.id)}
+                  className={`flex items-center justify-between p-1.5 rounded text-xs cursor-pointer transition-colors ${
+                    selectedAnnotationId === ann.id ? 'bg-accent/20 ring-1 ring-accent' : 'bg-alt-bg hover:bg-alt-bg/80'
+                  }`}
+                >
                   <span className="truncate flex-1">
                     {ann.type === 'text' ? `"${ann.text}"` : 'Signature'}
                   </span>
                   <button
-                    onClick={() => removeAnnotation(activePageId, ann.id)}
+                    onClick={(e) => { e.stopPropagation(); removeAnnotation(activePageId, ann.id); if (selectedAnnotationId === ann.id) setSelectedAnnotationId(null) }}
                     className="ml-2 text-negative hover:text-negative/80 shrink-0"
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -256,35 +315,18 @@ export default function AnnotateEditor() {
             onClick={handleCanvasClick}
             className="rounded shadow-lg cursor-crosshair border border-border"
           />
-          {/* Render annotation markers on top */}
+          {/* Render interactive annotation boxes */}
           {viewport && pageAnnotations.map((ann) => (
-            <div
+            <AnnotationBox
               key={ann.id}
-              className="absolute pointer-events-none"
-              style={{
-                left: `${ann.x * 100}%`,
-                top: `${ann.y * 100}%`,
-              }}
-            >
-              {ann.type === 'text' && (
-                <span
-                  style={{
-                    fontSize: `${ann.fontSize}px`,
-                    color: ann.color,
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {ann.text}
-                </span>
-              )}
-              {ann.type === 'signature' && (
-                <img
-                  src={ann.dataUrl}
-                  alt="Signature"
-                  style={{ width: `${ann.width * viewport.width}px` }}
-                />
-              )}
-            </div>
+              annotation={ann}
+              isSelected={selectedAnnotationId === ann.id}
+              onSelect={() => setSelectedAnnotationId(ann.id)}
+              onUpdate={(updates) => handleAnnotationUpdate(ann.id, updates)}
+              canvasWidth={viewport.width}
+              canvasHeight={viewport.height}
+              aspectRatio={ann.type === 'signature' ? sigAspectRatios[ann.dataUrl] : undefined}
+            />
           ))}
         </div>
       </div>
