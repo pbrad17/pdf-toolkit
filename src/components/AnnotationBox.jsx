@@ -225,6 +225,7 @@ export default function AnnotationBox({
             overflowWrap: 'break-word',
             whiteSpace: 'pre-wrap',
             lineHeight: 1.2,
+            opacity: ann.opacity ?? 1,
             userSelect: 'none',
             pointerEvents: 'none',
           }}
@@ -273,6 +274,7 @@ export default function AnnotationBox({
             width: '100%',
             height: '100%',
             objectFit: 'contain',
+            opacity: ann.opacity ?? 1,
             userSelect: 'none',
             pointerEvents: 'none',
           }}
@@ -286,6 +288,7 @@ export default function AnnotationBox({
             width: '100%',
             height: '100%',
             overflow: 'visible',
+            opacity: ann.opacity ?? 1,
             userSelect: 'none',
             pointerEvents: 'none',
           }}
@@ -327,6 +330,7 @@ export default function AnnotationBox({
             width: '100%',
             height: '100%',
             overflow: 'visible',
+            opacity: ann.opacity ?? 1,
             userSelect: 'none',
             pointerEvents: 'none',
           }}

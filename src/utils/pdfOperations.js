@@ -65,6 +65,7 @@ export async function buildFinalPdf(documents, pages, annotations = {}) {
               size,
               font: segFont,
               color: rgb(color.r, color.g, color.b),
+              opacity: ann.opacity ?? 1,
             })
             const segWidth = segFont.widthOfTextAtSize(seg.text, size)
             // Draw underline
@@ -74,6 +75,7 @@ export async function buildFinalPdf(documents, pages, annotations = {}) {
                 end: { x: xOffset + segWidth, y: lineY - size * 0.15 },
                 thickness: size * 0.05,
                 color: rgb(color.r, color.g, color.b),
+                opacity: ann.opacity ?? 1,
               })
             }
             xOffset += segWidth
@@ -111,6 +113,7 @@ export async function buildFinalPdf(documents, pages, annotations = {}) {
             end: { x: bboxX + x2n * bboxW, y: bboxTopY - y2n * bboxH },
             thickness: scaledThickness,
             color: borderColor,
+            opacity: ann.opacity ?? 1,
           })
         }
       } else if (ann.type === 'signature' || ann.type === 'image') {
@@ -129,6 +132,7 @@ export async function buildFinalPdf(documents, pages, annotations = {}) {
           y,
           width: imgWidth,
           height: imgHeight,
+          opacity: ann.opacity ?? 1,
         })
       }
     }

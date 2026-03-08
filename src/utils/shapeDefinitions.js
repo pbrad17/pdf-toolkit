@@ -78,6 +78,7 @@ export function drawShapePdf(copiedPage, ann, pageW, pageH, rgbFn, hexToRgb) {
   const color = hexToRgb(ann.strokeColor || '#000000')
   const fillRgb = ann.fillColor ? hexToRgb(ann.fillColor) : null
   const sw = ann.strokeWidth || 2
+  const opac = ann.opacity ?? 1
   const x = ann.x * pageW
   const w = (ann.width || 0.1) * pageW
   const h = (ann.height || 0.08) * pageH
@@ -95,6 +96,7 @@ export function drawShapePdf(copiedPage, ann, pageW, pageH, rgbFn, hexToRgb) {
         end: { x: x + w, y: endY },
         thickness: sw,
         color: borderColor,
+        opacity: opac,
       })
       break
     }
@@ -106,6 +108,7 @@ export function drawShapePdf(copiedPage, ann, pageW, pageH, rgbFn, hexToRgb) {
         end: { x: x + w, y: endY },
         thickness: sw,
         color: borderColor,
+        opacity: opac,
       })
       // Arrowhead at the end point (x+w, endY)
       const headSize = Math.min(w, h) * 0.25 || 5
@@ -118,25 +121,25 @@ export function drawShapePdf(copiedPage, ann, pageW, pageH, rgbFn, hexToRgb) {
       const ry = tipY - headSize * Math.sin(angle + Math.PI / 6)
       copiedPage.drawSvgPath(
         `M 0 0 L ${lx - tipX} ${-(ly - tipY)} L ${rx - tipX} ${-(ry - tipY)} Z`,
-        { x: tipX, y: tipY, color: borderColor }
+        { x: tipX, y: tipY, color: borderColor, opacity: opac }
       )
       break
     }
     case 'rectangle':
       copiedPage.drawRectangle({
         x, y: bottomY, width: w, height: h,
-        borderColor, borderWidth: sw,
+        borderColor, borderWidth: sw, borderOpacity: opac,
         ...fillOpts,
-        ...(fillRgb ? {} : { opacity: 0 }),
+        ...(fillRgb ? { opacity: opac } : { opacity: 0 }),
       })
       break
     case 'circle':
       copiedPage.drawEllipse({
         x: x + w / 2, y: bottomY + h / 2,
         xScale: w / 2, yScale: h / 2,
-        borderColor, borderWidth: sw,
+        borderColor, borderWidth: sw, borderOpacity: opac,
         ...fillOpts,
-        ...(fillRgb ? {} : { opacity: 0 }),
+        ...(fillRgb ? { opacity: opac } : { opacity: 0 }),
       })
       break
     case 'triangle': {
@@ -145,9 +148,9 @@ export function drawShapePdf(copiedPage, ann, pageW, pageH, rgbFn, hexToRgb) {
       const path = `M 0 0 L ${x - cx} ${-(bottomY - topY)} L ${x + w - cx} ${-(bottomY - topY)} Z`
       copiedPage.drawSvgPath(path, {
         x: cx, y: topY,
-        borderColor, borderWidth: sw,
+        borderColor, borderWidth: sw, borderOpacity: opac,
         ...fillOpts,
-        ...(fillRgb ? {} : { opacity: 0 }),
+        ...(fillRgb ? { opacity: opac } : { opacity: 0 }),
       })
       break
     }
@@ -165,9 +168,9 @@ export function drawShapePdf(copiedPage, ann, pageW, pageH, rgbFn, hexToRgb) {
       }
       copiedPage.drawSvgPath(pts.join(' ') + ' Z', {
         x: cx, y: cy,
-        borderColor, borderWidth: sw,
+        borderColor, borderWidth: sw, borderOpacity: opac,
         ...fillOpts,
-        ...(fillRgb ? {} : { opacity: 0 }),
+        ...(fillRgb ? { opacity: opac } : { opacity: 0 }),
       })
       break
     }
@@ -177,9 +180,9 @@ export function drawShapePdf(copiedPage, ann, pageW, pageH, rgbFn, hexToRgb) {
       const path = `M 0 ${h / 2} L ${-w / 2} 0 L 0 ${-h / 2} L ${w / 2} 0 Z`
       copiedPage.drawSvgPath(path, {
         x: cx, y: cy,
-        borderColor, borderWidth: sw,
+        borderColor, borderWidth: sw, borderOpacity: opac,
         ...fillOpts,
-        ...(fillRgb ? {} : { opacity: 0 }),
+        ...(fillRgb ? { opacity: opac } : { opacity: 0 }),
       })
       break
     }
@@ -188,20 +191,20 @@ export function drawShapePdf(copiedPage, ann, pageW, pageH, rgbFn, hexToRgb) {
       const p1 = { x: x + w * 0.1, y: bottomY + h * 0.45 }
       const p2 = { x: x + w * 0.4, y: bottomY + h * 0.15 }
       const p3 = { x: x + w * 0.9, y: bottomY + h * 0.85 }
-      copiedPage.drawLine({ start: p1, end: p2, thickness: sw, color: borderColor })
-      copiedPage.drawLine({ start: p2, end: p3, thickness: sw, color: borderColor })
+      copiedPage.drawLine({ start: p1, end: p2, thickness: sw, color: borderColor, opacity: opac })
+      copiedPage.drawLine({ start: p2, end: p3, thickness: sw, color: borderColor, opacity: opac })
       break
     }
     case 'xmark': {
       copiedPage.drawLine({
         start: { x: x + w * 0.1, y: bottomY + h * 0.1 },
         end: { x: x + w * 0.9, y: bottomY + h * 0.9 },
-        thickness: sw, color: borderColor,
+        thickness: sw, color: borderColor, opacity: opac,
       })
       copiedPage.drawLine({
         start: { x: x + w * 0.9, y: bottomY + h * 0.1 },
         end: { x: x + w * 0.1, y: bottomY + h * 0.9 },
-        thickness: sw, color: borderColor,
+        thickness: sw, color: borderColor, opacity: opac,
       })
       break
     }
@@ -221,9 +224,9 @@ export function drawShapePdf(copiedPage, ann, pageW, pageH, rgbFn, hexToRgb) {
       ].join(' ')
       copiedPage.drawSvgPath(path, {
         x: cx, y: bottomY + h / 2,
-        borderColor, borderWidth: sw,
+        borderColor, borderWidth: sw, borderOpacity: opac,
         ...fillOpts,
-        ...(fillRgb ? {} : { opacity: 0 }),
+        ...(fillRgb ? { opacity: opac } : { opacity: 0 }),
       })
       break
     }

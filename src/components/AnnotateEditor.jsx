@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useAppContext } from '../AppContext'
 import pdfjsLib from '../utils/pdfSetup'
 import AnnotationBox from './AnnotationBox'
+import SelectedAnnotationPanel from './SelectedAnnotationPanel'
 import RichTextEditor from './RichTextEditor'
 import { spansToPlainText, getBaseFontCSS, getBaseFamily } from '../utils/richTextUtils'
 import { SHAPES, FILLABLE_SHAPES, FLIPPABLE_SHAPES, getShapeSvgElements } from '../utils/shapeDefinitions'
@@ -62,6 +63,9 @@ export default function AnnotateEditor() {
   const activePageIndex = pages.findIndex(p => p.id === activePageId)
   const activePage = pages.find(p => p.id === activePageId)
   const pageAnnotations = activePageId ? (annotations[activePageId] || []) : []
+  const selectedAnnotation = selectedAnnotationId
+    ? pageAnnotations.find(a => a.id === selectedAnnotationId)
+    : null
 
   // Keyboard: Escape to deselect, Delete to remove, Ctrl+C/V to copy/paste, Ctrl+Z/Y to undo/redo
   useEffect(() => {
@@ -413,6 +417,14 @@ export default function AnnotateEditor() {
             ))}
           </div>
         </div>
+
+        {selectedAnnotation && (
+          <SelectedAnnotationPanel
+            annotation={selectedAnnotation}
+            onUpdate={(updates) => handleAnnotationUpdate(selectedAnnotation.id, updates)}
+            onDeselect={() => setSelectedAnnotationId(null)}
+          />
+        )}
 
         {mode === 'text' && (
           <>
