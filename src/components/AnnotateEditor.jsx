@@ -213,7 +213,7 @@ export default function AnnotateEditor() {
                   fontSize={14}
                   color="inherit"
                   fontFamily={getBaseFontCSS(fontFamily)}
-                  toolbarPosition="bottom"
+                  toolbarPosition="top"
                   disableBoldItalic={fontFamily === 'Symbol' || fontFamily === 'ZapfDingbats'}
                 />
               </div>

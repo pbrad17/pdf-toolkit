@@ -247,7 +247,7 @@ export default function AnnotationBox({
             autoFocus
             onBlur={exitEditing}
             onEscape={exitEditing}
-            toolbarPosition={ann.y < 0.08 ? 'bottom' : 'top'}
+            toolbarPosition={ann.y < 0.08 ? 'below' : 'above'}
             disableBoldItalic={disableBoldItalic}
           />
         </div>

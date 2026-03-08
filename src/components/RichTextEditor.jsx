@@ -179,6 +179,9 @@ export default function RichTextEditor({
     onBlur?.()
   }, [onBlur])
 
+  // 'top' = static flow inside container; 'above'/'below' = absolute outside
+  const isAbsolute = toolbarPosition === 'above' || toolbarPosition === 'below'
+
   const toolbarEl = (
     <div
       style={{
@@ -187,12 +190,16 @@ export default function RichTextEditor({
         padding: '2px 4px',
         background: '#1e293b',
         borderRadius: '4px',
-        position: 'absolute',
-        [toolbarPosition === 'top' ? 'bottom' : 'top']: '100%',
-        left: 0,
-        marginBottom: toolbarPosition === 'top' ? '4px' : 0,
-        marginTop: toolbarPosition === 'bottom' ? '4px' : 0,
-        zIndex: 50,
+        ...(isAbsolute ? {
+          position: 'absolute',
+          [toolbarPosition === 'above' ? 'bottom' : 'top']: '100%',
+          left: 0,
+          marginBottom: toolbarPosition === 'above' ? '4px' : 0,
+          marginTop: toolbarPosition === 'below' ? '4px' : 0,
+          zIndex: 50,
+        } : {
+          marginBottom: '4px',
+        }),
         whiteSpace: 'nowrap',
       }}
     >
