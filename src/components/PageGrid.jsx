@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { useAppContext } from '../AppContext'
 import PageThumbnail from './PageThumbnail'
 
-export default function PageGrid({ showControls = false }) {
+export default function PageGrid({ showControls = false, showSelect = false }) {
   const { pages, movePage } = useAppContext()
   const dragIndexRef = useRef(null)
 
@@ -43,6 +43,7 @@ export default function PageGrid({ showControls = false }) {
             index={i}
             totalPages={pages.length}
             showControls={showControls}
+            showSelect={showSelect}
           />
         </div>
       ))}

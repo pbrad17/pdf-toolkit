@@ -7,13 +7,13 @@ export const useAppContext = () => useContext(AppContext)
 let nextDocId = 1
 let nextPageId = 1
 
-function generateThumbnail(bytes, pageIndex) {
+function generateThumbnail(bytes, pageIndex, rotation = 0) {
   return new Promise(async (resolve) => {
     const loadingTask = pdfjsLib.getDocument({ data: bytes.slice() })
     const pdf = await loadingTask.promise
     const page = await pdf.getPage(pageIndex + 1)
     const scale = 200 / page.getViewport({ scale: 1 }).width
-    const viewport = page.getViewport({ scale })
+    const viewport = page.getViewport({ scale, rotation })
     const canvas = new OffscreenCanvas(viewport.width, viewport.height)
     const ctx = canvas.getContext('2d')
     await page.render({ canvasContext: ctx, viewport }).promise
@@ -32,6 +32,8 @@ export function AppProvider({ children }) {
   const [pages, setPages] = useState([])
   const [activeTool, setActiveTool] = useState('upload')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [selectedPages, setSelectedPages] = useState(new Set())
+  const [previewPageId, setPreviewPageId] = useState(null)
   const blobUrlsRef = useRef([])
 
   useEffect(() => {
@@ -61,6 +63,7 @@ export function AppProvider({ children }) {
           docId,
           pageIndex: i,
           thumbnailUrl,
+          rotation: 0,
         })
       }
 
@@ -77,6 +80,11 @@ export function AppProvider({ children }) {
       const removed = prev.filter(p => pageIds.includes(p.id))
       removed.forEach(p => URL.revokeObjectURL(p.thumbnailUrl))
       return prev.filter(p => !pageIds.includes(p.id))
+    })
+    setSelectedPages(prev => {
+      const next = new Set(prev)
+      pageIds.forEach(id => next.delete(id))
+      return next
     })
   }, [])
 
@@ -102,11 +110,49 @@ export function AppProvider({ children }) {
     })
   }, [])
 
+  const rotatePage = useCallback((pageId, direction) => {
+    setPages(prev => prev.map(p => {
+      if (p.id !== pageId) return p
+      const newRotation = (p.rotation + direction + 360) % 360
+      const doc = documents.find(d => d.id === p.docId)
+      if (!doc) return p
+      // Revoke old thumbnail
+      URL.revokeObjectURL(p.thumbnailUrl)
+      // Generate new thumbnail asynchronously, update in place
+      generateThumbnail(doc.bytes, p.pageIndex, newRotation).then(url => {
+        blobUrlsRef.current.push(url)
+        setPages(curr => curr.map(cp =>
+          cp.id === pageId ? { ...cp, thumbnailUrl: url } : cp
+        ))
+      })
+      return { ...p, rotation: newRotation, thumbnailUrl: p.thumbnailUrl }
+    }))
+  }, [documents])
+
+  const toggleSelectPage = useCallback((pageId) => {
+    setSelectedPages(prev => {
+      const next = new Set(prev)
+      if (next.has(pageId)) next.delete(pageId)
+      else next.add(pageId)
+      return next
+    })
+  }, [])
+
+  const selectAllPages = useCallback(() => {
+    setSelectedPages(new Set(pages.map(p => p.id)))
+  }, [pages])
+
+  const deselectAllPages = useCallback(() => {
+    setSelectedPages(new Set())
+  }, [])
+
   const clearAll = useCallback(() => {
     blobUrlsRef.current.forEach(url => URL.revokeObjectURL(url))
     blobUrlsRef.current = []
     setDocuments([])
     setPages([])
+    setSelectedPages(new Set())
+    setPreviewPageId(null)
   }, [])
 
   useEffect(() => {
@@ -120,7 +166,9 @@ export function AppProvider({ children }) {
     documents, pages,
     activeTool, setActiveTool,
     isProcessing, setIsProcessing,
-    addDocument, removePages, reorderPage, movePage, clearAll,
+    selectedPages, toggleSelectPage, selectAllPages, deselectAllPages,
+    previewPageId, setPreviewPageId,
+    addDocument, removePages, reorderPage, movePage, rotatePage, clearAll,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument, degrees } from 'pdf-lib'
 
 export async function buildFinalPdf(documents, pages) {
   const finalPdf = await PDFDocument.create()
@@ -13,10 +13,19 @@ export async function buildFinalPdf(documents, pages) {
     }
     const srcDoc = docCache.get(page.docId)
     const [copiedPage] = await finalPdf.copyPages(srcDoc, [page.pageIndex])
+    if (page.rotation) {
+      const currentRotation = copiedPage.getRotation().angle
+      copiedPage.setRotation(degrees(currentRotation + page.rotation))
+    }
     finalPdf.addPage(copiedPage)
   }
 
   return finalPdf.save()
+}
+
+export async function buildExtractPdf(documents, pages, selectedIds) {
+  const selected = pages.filter(p => selectedIds.has(p.id))
+  return buildFinalPdf(documents, selected)
 }
 
 export async function countFormFields(bytes) {

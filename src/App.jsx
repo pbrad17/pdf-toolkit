@@ -2,12 +2,15 @@ import { AppProvider, useAppContext } from './AppContext'
 import UploadZone from './components/UploadZone'
 import ManagePages from './components/ManagePages'
 import FlattenForms from './components/FlattenForms'
+import ExtractPages from './components/ExtractPages'
+import PreviewModal from './components/PreviewModal'
 import PageGrid from './components/PageGrid'
 import { buildFinalPdf } from './utils/pdfOperations'
 
 const TOOLS = [
   { id: 'upload', label: 'Upload', icon: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12' },
   { id: 'manage', label: 'Manage', icon: 'M4 6h16M4 12h16M4 18h16' },
+  { id: 'extract', label: 'Extract', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z' },
   { id: 'flatten', label: 'Flatten', icon: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2 M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z' },
 ]
 
@@ -130,9 +133,12 @@ function AppContent() {
             </div>
           )}
           {activeTool === 'manage' && <ManagePages />}
+          {activeTool === 'extract' && <ExtractPages />}
           {activeTool === 'flatten' && <FlattenForms />}
         </div>
       </div>
+
+      <PreviewModal />
     </div>
   )
 }
