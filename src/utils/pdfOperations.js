@@ -94,6 +94,41 @@ export async function buildFinalPdf(documents, pages, annotations = {}) {
         const h = (ann.height || 0.03) * pageH
         const y = (1 - ann.y) * pageH - h
         copiedPage.drawRectangle({ x, y, width: w, height: h, color: rgb(hColor.r, hColor.g, hColor.b), opacity: ann.opacity ?? 0.35 })
+      } else if (ann.type === 'note') {
+        // Render note as colored rectangle with text content
+        const noteColor = hexToRgb(ann.color || '#FFF176')
+        const noteX = ann.x * pageW
+        const noteW = (ann.width || 0.18) * pageW
+        const noteH = (ann.height || 0.12) * pageH
+        const noteY = (1 - ann.y) * pageH - noteH
+        const opac = ann.opacity ?? 1
+        copiedPage.drawRectangle({
+          x: noteX, y: noteY, width: noteW, height: noteH,
+          color: rgb(noteColor.r, noteColor.g, noteColor.b),
+          opacity: opac,
+          borderColor: rgb(noteColor.r * 0.7, noteColor.g * 0.7, noteColor.b * 0.7),
+          borderWidth: 0.5,
+          borderOpacity: opac,
+        })
+        if (ann.noteText) {
+          const font = await getFont('Helvetica')
+          const noteSize = Math.min(10, noteH * 0.2)
+          const textColor = rgb(0.2, 0.2, 0.2)
+          const lines = wrapText(ann.noteText, font, noteSize, noteW - 8)
+          const lineHeight = noteSize * 1.3
+          for (let li = 0; li < lines.length; li++) {
+            const lineY = noteY + noteH - 12 - li * lineHeight
+            if (lineY < noteY + 4) break
+            copiedPage.drawText(lines[li], {
+              x: noteX + 4,
+              y: lineY,
+              size: noteSize,
+              font,
+              color: textColor,
+              opacity: opac,
+            })
+          }
+        }
       } else if (ann.type === 'stamp') {
         drawShapePdf(copiedPage, ann, pageW, pageH, rgb, hexToRgb)
       } else if (ann.type === 'draw' && ann.points && ann.points.length >= 2) {

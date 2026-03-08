@@ -322,6 +322,92 @@ export default function AnnotationBox({
           }}
         />
       )}
+      {ann.type === 'note' && (
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            userSelect: 'none',
+            pointerEvents: ann.collapsed ? 'auto' : 'none',
+            opacity: ann.opacity ?? 1,
+          }}
+        >
+          {ann.collapsed ? (
+            <div
+              onClick={(e) => { e.stopPropagation(); onUpdate({ collapsed: false, width: 0.18, height: 0.12 }) }}
+              style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: ann.color || '#FFF176',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+              }}
+            >
+              <svg width="60%" height="60%" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: ann.color || '#FFF176',
+                borderRadius: '4px',
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '2px 6px',
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                  color: '#333',
+                  borderBottom: '1px solid rgba(0,0,0,0.15)',
+                  cursor: 'pointer',
+                  pointerEvents: 'auto',
+                  flexShrink: 0,
+                }}
+                onClick={(e) => { e.stopPropagation(); onUpdate({ collapsed: true, width: 0.025, height: 0.025 }) }}
+              >
+                <span>Note</span>
+                <span style={{ fontSize: '12px', lineHeight: 1 }}>-</span>
+              </div>
+              <textarea
+                value={ann.noteText || ''}
+                onChange={(e) => onUpdate({ noteText: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                style={{
+                  flex: 1,
+                  width: '100%',
+                  border: 'none',
+                  background: 'transparent',
+                  resize: 'none',
+                  fontSize: '11px',
+                  lineHeight: 1.3,
+                  padding: '4px 6px',
+                  color: '#333',
+                  outline: 'none',
+                  pointerEvents: 'auto',
+                  fontFamily: 'sans-serif',
+                }}
+                placeholder="Type note..."
+              />
+            </div>
+          )}
+        </div>
+      )}
       {ann.type === 'draw' && ann.points && (
         <svg
           viewBox="0 0 1 1"

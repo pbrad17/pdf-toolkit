@@ -138,6 +138,35 @@ export function AppProvider({ children }) {
     }))
   }, [documents])
 
+  const duplicatePage = useCallback(async (pageId) => {
+    const page = pages.find(p => p.id === pageId)
+    if (!page) return
+    const doc = documents.find(d => d.id === page.docId)
+    if (!doc) return
+    const thumbnailUrl = await generateThumbnail(doc.bytes, page.pageIndex, page.rotation)
+    blobUrlsRef.current.push(thumbnailUrl)
+    const newPage = {
+      id: nextPageId++,
+      docId: page.docId,
+      pageIndex: page.pageIndex,
+      thumbnailUrl,
+      rotation: page.rotation,
+    }
+    setPages(prev => {
+      const idx = prev.findIndex(p => p.id === pageId)
+      const next = [...prev]
+      next.splice(idx + 1, 0, newPage)
+      return next
+    })
+    // Copy annotations if any exist for this page
+    setAnnotations(prev => {
+      const sourceAnns = prev[pageId]
+      if (!sourceAnns || sourceAnns.length === 0) return prev
+      const copied = sourceAnns.map(a => ({ ...a, id: Date.now() + Math.random() }))
+      return { ...prev, [newPage.id]: copied }
+    })
+  }, [pages, documents])
+
   const toggleSelectPage = useCallback((pageId) => {
     setSelectedPages(prev => {
       const next = new Set(prev)
@@ -284,7 +313,7 @@ export function AppProvider({ children }) {
     annotations, addAnnotation, removeAnnotation, updateAnnotation, recordAnnotationChange,
     undo, redo, canUndo, canRedo,
     signatures, addSignature, removeSignature,
-    addDocument, removePages, reorderPage, movePage, rotatePage, clearAll,
+    addDocument, removePages, reorderPage, movePage, rotatePage, duplicatePage, clearAll,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

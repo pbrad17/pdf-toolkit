@@ -13,6 +13,7 @@ const TYPE_LABELS = {
   stamp: 'Stamp',
   draw: 'Drawing',
   highlight: 'Highlight',
+  note: 'Note',
   redact: 'Redact',
   image: 'Image',
   signature: 'Signature',
@@ -180,13 +181,42 @@ export default function SelectedAnnotationPanel({ annotation, onUpdate, onDesele
         </div>
       )}
 
+      {/* Note properties */}
+      {type === 'note' && (
+        <>
+          <div>
+            <label className="text-xs font-medium text-steel-blue block mb-1">Color</label>
+            <div className="flex gap-1">
+              {['#FFF176', '#A5D6A7', '#90CAF9', '#F48FB1', '#FFCC80', '#CE93D8'].map(c => (
+                <button
+                  key={c}
+                  onClick={() => onUpdate({ color: c })}
+                  className={`w-6 h-6 rounded border-2 transition-colors ${ann.color === c ? 'border-accent ring-2 ring-accent/30' : 'border-border'}`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-steel-blue block mb-1">Note Text</label>
+            <textarea
+              value={ann.noteText || ''}
+              onChange={(e) => onUpdate({ noteText: e.target.value })}
+              rows={3}
+              placeholder="Type note..."
+              className="w-full px-2 py-1.5 rounded border border-border bg-dark-bg text-text-primary text-sm resize-none"
+            />
+          </div>
+        </>
+      )}
+
       {/* Redact info */}
       {type === 'redact' && (
         <p className="text-xs text-steel-blue">Redactions are always opaque black. Resize using the handles.</p>
       )}
 
       {/* Opacity for types that support it (not highlight — handled above, not redact — always opaque) */}
-      {['text', 'stamp', 'draw', 'image', 'signature'].includes(type) && (
+      {['text', 'stamp', 'draw', 'note', 'image', 'signature'].includes(type) && (
         <div>
           <label className="text-xs font-medium text-steel-blue block mb-1">Opacity ({Math.round((ann.opacity ?? 1) * 100)}%)</label>
           <input
