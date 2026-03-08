@@ -5,6 +5,7 @@ import FlattenForms from './components/FlattenForms'
 import ExtractPages from './components/ExtractPages'
 import AnnotateEditor from './components/AnnotateEditor'
 import SignaturePad from './components/SignaturePad'
+import WatermarkTool from './components/WatermarkTool'
 import PreviewModal from './components/PreviewModal'
 import PageGrid from './components/PageGrid'
 import { buildFinalPdf } from './utils/pdfOperations'
@@ -15,6 +16,7 @@ const TOOLS = [
   { id: 'extract', label: 'Extract', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z' },
   { id: 'annotate', label: 'Annotate', icon: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' },
   { id: 'signature', label: 'Signature', icon: 'M20 19.5c-1 .5-2.68.86-4 .86-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6c0 .81-.16 1.59-.44 2.3 M2 21l1.5-4.5L17 3l3 3L6.5 19.5z' },
+  { id: 'watermark', label: 'Watermark', icon: 'M12 2L2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5' },
   { id: 'flatten', label: 'Flatten', icon: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2 M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z' },
 ]
 
@@ -140,6 +142,7 @@ function AppContent() {
           {activeTool === 'extract' && <ExtractPages />}
           {activeTool === 'annotate' && <AnnotateEditor />}
           {activeTool === 'signature' && <SignaturePad />}
+          {activeTool === 'watermark' && <WatermarkTool />}
           {activeTool === 'flatten' && <FlattenForms />}
         </div>
       </div>

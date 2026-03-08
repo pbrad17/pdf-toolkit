@@ -150,6 +150,84 @@ export async function flattenForms(pdfBytes) {
   return doc.save()
 }
 
+export async function applyWatermark(pdfBytes, config) {
+  const doc = await PDFDocument.load(pdfBytes)
+  const pages = doc.getPages()
+
+  if (config.mode === 'text') {
+    const font = await doc.embedFont(StandardFonts.Helvetica)
+    const colorObj = hexToRgb(config.color || '#FF0000')
+    const textColor = rgb(colorObj.r, colorObj.g, colorObj.b)
+    const size = config.fontSize || 60
+    const opac = config.opacity ?? 0.3
+    const rot = config.rotation ?? -45
+    const rad = (rot * Math.PI) / 180
+
+    for (const page of pages) {
+      const { width, height } = page.getSize()
+      const textWidth = font.widthOfTextAtSize(config.text, size)
+      const textHeight = font.heightAtSize(size)
+      // Position so text center aligns with page center after rotation
+      const cx = width / 2
+      const cy = height / 2
+      const x = cx - (textWidth / 2) * Math.cos(rad) + (textHeight / 2) * Math.sin(rad)
+      const y = cy - (textWidth / 2) * Math.sin(rad) - (textHeight / 2) * Math.cos(rad)
+
+      page.drawText(config.text, {
+        x, y, size, font,
+        color: textColor,
+        opacity: opac,
+        rotate: degrees(rot),
+      })
+    }
+  } else if (config.mode === 'image' && config.imageBytes) {
+    const image = config.isJpeg
+      ? await doc.embedJpg(config.imageBytes)
+      : await doc.embedPng(config.imageBytes)
+    const dims = image.scale(1)
+    const opac = config.imageOpacity ?? 0.3
+    const pos = config.position || 'center'
+
+    for (const page of pages) {
+      const { width, height } = page.getSize()
+
+      if (pos === 'tile') {
+        const tileW = width * 0.2
+        const tileH = tileW * (dims.height / dims.width)
+        const gapX = tileW * 0.5
+        const gapY = tileH * 0.5
+        for (let tx = 0; tx < width; tx += tileW + gapX) {
+          for (let ty = 0; ty < height; ty += tileH + gapY) {
+            page.drawImage(image, { x: tx, y: ty, width: tileW, height: tileH, opacity: opac })
+          }
+        }
+      } else {
+        // Single placement — scale to 40% of page, preserve aspect ratio
+        const maxW = width * 0.4
+        const maxH = height * 0.4
+        const scale = Math.min(maxW / dims.width, maxH / dims.height)
+        const imgW = dims.width * scale
+        const imgH = dims.height * scale
+        let x, y
+        if (pos === 'center') {
+          x = width / 2 - imgW / 2; y = height / 2 - imgH / 2
+        } else if (pos === 'top-left') {
+          x = width * 0.05; y = height - imgH - height * 0.05
+        } else if (pos === 'top-right') {
+          x = width - imgW - width * 0.05; y = height - imgH - height * 0.05
+        } else if (pos === 'bottom-left') {
+          x = width * 0.05; y = height * 0.05
+        } else { // bottom-right
+          x = width - imgW - width * 0.05; y = height * 0.05
+        }
+        page.drawImage(image, { x, y, width: imgW, height: imgH, opacity: opac })
+      }
+    }
+  }
+
+  return doc.save()
+}
+
 function hexToRgb(hex) {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
   return result
