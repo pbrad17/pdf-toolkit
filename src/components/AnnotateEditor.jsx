@@ -21,6 +21,7 @@ export default function AnnotateEditor() {
   const [sigWidth, setSigWidth] = useState(0.15)
   const [selectedAnnotationId, setSelectedAnnotationId] = useState(null)
   const [sigAspectRatios, setSigAspectRatios] = useState({}) // dataUrl -> w/h ratio
+  const [pageInputValue, setPageInputValue] = useState('1')
   const canvasRef = useRef(null)
   const containerRef = useRef(null)
   const [viewport, setViewport] = useState(null)
@@ -32,11 +33,14 @@ export default function AnnotateEditor() {
     }
   }, [pages, activePageId])
 
-  // Deselect when switching pages
+  // Deselect when switching pages + sync page input
   useEffect(() => {
     setSelectedAnnotationId(null)
-  }, [activePageId])
+    const idx = pages.findIndex(p => p.id === activePageId)
+    if (idx >= 0) setPageInputValue(String(idx + 1))
+  }, [activePageId, pages])
 
+  const activePageIndex = pages.findIndex(p => p.id === activePageId)
   const activePage = pages.find(p => p.id === activePageId)
   const pageAnnotations = activePageId ? (annotations[activePageId] || []) : []
 
@@ -165,18 +169,39 @@ export default function AnnotateEditor() {
     <div className="flex gap-4" ref={containerRef}>
       {/* Left: Controls */}
       <div className="w-56 shrink-0 space-y-4">
-        {/* Page selector */}
+        {/* Page navigator */}
         <div>
           <label className="text-xs font-medium text-steel-blue block mb-1">Page</label>
-          <select
-            value={activePageId || ''}
-            onChange={(e) => setActivePageId(Number(e.target.value))}
-            className="w-full px-2 py-1.5 rounded border border-border bg-dark-bg text-text-primary text-sm"
-          >
-            {pages.map((p, i) => (
-              <option key={p.id} value={p.id}>Page {i + 1}</option>
-            ))}
-          </select>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => { if (activePageIndex > 0) setActivePageId(pages[activePageIndex - 1].id) }}
+              disabled={activePageIndex <= 0}
+              className="px-1.5 py-1.5 rounded border border-border text-text-primary text-sm hover:border-accent disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" /></svg>
+            </button>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={pageInputValue}
+              onChange={(e) => setPageInputValue(e.target.value)}
+              onBlur={() => {
+                const n = Math.max(1, Math.min(pages.length, parseInt(pageInputValue) || 1))
+                setActivePageId(pages[n - 1].id)
+                setPageInputValue(String(n))
+              }}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur() }}
+              className="w-10 text-center px-1 py-1.5 rounded border border-border bg-dark-bg text-text-primary text-sm"
+            />
+            <span className="text-xs text-steel-blue whitespace-nowrap">of {pages.length}</span>
+            <button
+              onClick={() => { if (activePageIndex < pages.length - 1) setActivePageId(pages[activePageIndex + 1].id) }}
+              disabled={activePageIndex >= pages.length - 1}
+              className="px-1.5 py-1.5 rounded border border-border text-text-primary text-sm hover:border-accent disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 1 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>
+            </button>
+          </div>
         </div>
 
         {/* Mode toggle */}
