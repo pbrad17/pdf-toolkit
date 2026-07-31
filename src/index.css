@@ -59,6 +59,87 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+/* ---------------------------------------------------------------------------
+   pdf.js text layer.
+
+   Transparent, absolutely-positioned spans sit over the page canvas: the canvas
+   supplies the visible glyphs while selection, copy and search operate on real
+   text. Without this layer the document is only a picture.
+
+   These rules mirror pdfjs-dist/web/pdf_viewer.css rather than approximating
+   it. pdf.js writes inline styles that reference a specific set of custom
+   properties, and if any of them are undefined the declarations referencing
+   them are invalid at computed-value time — spans then fall back to their
+   natural size and drift badly out of register with the canvas. In particular
+   the span font-size and transform rules below are what size the glyphs at all;
+   omitting them leaves every span at the default 16px.
+   --------------------------------------------------------------------------- */
+.textLayer {
+  /* Contract expected by pdf.js's inline styles. --scale-factor is set by the
+     viewer before render; the rest are constants it assumes are present. */
+  --user-unit: 1;
+  --total-scale-factor: calc(var(--scale-factor) * var(--user-unit));
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 1;
+}
+
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+/* The rules that actually scale each run to match the rendered glyphs. */
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+/* Structural markers pdf.js emits to keep copied text readable across line and
+   column breaks. They must not occupy layout space of their own. */
+.textLayer .markedContent {
+  display: contents;
+}
+
+.textLayer ::selection {
+  background: color-mix(in srgb, var(--theme-steel-blue) 55%, transparent);
+}
+
+.textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: -1;
+  cursor: default;
+  user-select: none;
+}
+
+.textLayer.selecting .endOfContent {
+  top: 0;
+}
+
 /* Range slider: larger thumb for easier dragging */
 input[type="range"] {
   -webkit-appearance: none;

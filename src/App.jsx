@@ -1,194 +1,186 @@
-import { AppProvider, useAppContext } from './AppContext'
-import UploadZone from './components/UploadZone'
-import ManagePages from './components/ManagePages'
-import FlattenForms from './components/FlattenForms'
-import ExtractPages from './components/ExtractPages'
-import AnnotateEditor from './components/AnnotateEditor'
-import SignaturePad from './components/SignaturePad'
-import WatermarkTool from './components/WatermarkTool'
-import HeaderFooterTool from './components/HeaderFooterTool'
-import CropTool from './components/CropTool'
-import SplitTool from './components/SplitTool'
-import FormFillTool from './components/FormFillTool'
-import BookmarkTool from './components/BookmarkTool'
-import GrayscaleTool from './components/GrayscaleTool'
-import ExportImagesTool from './components/ExportImagesTool'
-import BatesNumberingTool from './components/BatesNumberingTool'
-import PageResizeTool from './components/PageResizeTool'
-import RotatePagesTool from './components/RotatePagesTool'
-import CompressTool from './components/CompressTool'
-import PreviewModal from './components/PreviewModal'
-import PageGrid from './components/PageGrid'
-import { buildFinalPdf } from './utils/pdfOperations'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
+import { EditorProvider } from './state/EditorContext'
+import { useEditor } from './state/useEditor'
+import { useSearch } from './search/useSearch'
+import PdfViewer from './viewer/PdfViewer'
+import StartScreen from './ui/StartScreen'
+import Ribbon from './ui/Ribbon'
+import LeftRail from './ui/LeftRail'
+import StatusBar from './ui/StatusBar'
+import ToolOptionsPanel from './ui/ToolOptionsPanel'
+import { MODE_TOOLS } from './ui/toolRegistry'
 
-const TOOLS = [
-  { id: 'upload', label: 'Upload', icon: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12' },
-  { id: 'manage', label: 'Manage', icon: 'M4 6h16M4 12h16M4 18h16' },
-  { id: 'split', label: 'Split', icon: 'M16 3h5v5 M8 3H3v5 M3 16v5h5 M16 21h5v-5 M3 12h18' },
-  { id: 'extract', label: 'Extract', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z' },
-  { id: 'annotate', label: 'Annotate', icon: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z' },
-  { id: 'signature', label: 'Signature', icon: 'M20 19.5c-1 .5-2.68.86-4 .86-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6c0 .81-.16 1.59-.44 2.3 M2 21l1.5-4.5L17 3l3 3L6.5 19.5z' },
-  { id: 'watermark', label: 'Watermark', icon: 'M12 2L2 7l10 5 10-5-10-5z M2 17l10 5 10-5 M2 12l10 5 10-5' },
-  { id: 'headers', label: 'Headers', icon: 'M4 3h16v4H4zM4 17h16v4H4zM7 10h2v4H7zM11 9h2v6h-2zM15 10h2v4h-2z' },
-  { id: 'crop', label: 'Crop', icon: 'M6 2v4H2v2h4v14h2V8h10V6H8V2H6zM18 22v-4h4v-2h-4V2h-2v14H6v2h10v4h2z' },
-  { id: 'formfill', label: 'Fill Forms', icon: 'M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11' },
-  { id: 'bookmarks', label: 'Bookmarks', icon: 'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z' },
-  { id: 'exportimg', label: 'To Images', icon: 'M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z M8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z M21 15l-5-5L5 21' },
-  { id: 'bates', label: 'Bates #', icon: 'M4 7V4h16v3 M9 20h6 M12 4v16 M5 12h14' },
-  { id: 'resize', label: 'Resize', icon: 'M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7' },
-  { id: 'rotate', label: 'Rotate', icon: 'M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0 1 14.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0 0 20.49 15' },
-  { id: 'compress', label: 'Compress', icon: 'M22 12H2 M12 2v20 M17 7l-5 5-5-5 M7 17l5-5 5 5' },
-  { id: 'grayscale', label: 'Grayscale', icon: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM12 2v20' },
-  { id: 'flatten', label: 'Flatten', icon: 'M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2 M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z' },
-]
+function Editor() {
+  const {
+    state, isReady, theme, toggleTheme, closeDocument,
+    activeTool, setActiveTool, undo, redo, error, setError,
+    selectedAnnotationId, removeAnnotation, currentPageId, selectAllPages,
+  } = useEditor()
 
-function ThemeToggle() {
-  const { theme, toggleTheme } = useAppContext()
-  return (
-    <button
-      onClick={toggleTheme}
-      className="p-2 rounded-lg bg-dark-bg/50 border border-border hover:border-accent transition-colors"
-      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-    >
-      {theme === 'dark' ? (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-      ) : (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-        </svg>
-      )}
-    </button>
-  )
-}
+  const search = useSearch(state.pages)
+  const [railCollapsed, setRailCollapsed] = useState(false)
+  const [railTab, setRailTab] = useState('pages')
+  const viewerRef = useRef(null)
 
-function AppContent() {
-  const { activeTool, setActiveTool, pages, documents, annotations, isProcessing, setIsProcessing } = useAppContext()
+  const goToPage = useCallback((pageId, smooth = true) => {
+    viewerRef.current?.scrollToPage(pageId, { smooth })
+  }, [])
 
-  const handleDownload = async () => {
-    if (pages.length === 0) return
-    setIsProcessing(true)
-    try {
-      const bytes = await buildFinalPdf(documents, pages, annotations)
-      const blob = new Blob([bytes], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = documents.length === 1 ? documents[0].name : 'combined.pdf'
-      a.click()
-      URL.revokeObjectURL(url)
-    } finally {
-      setIsProcessing(false)
+  // Follow the active search match as the user steps through results. This
+  // drives the DOM directly, so it does not cascade a render.
+  useEffect(() => {
+    if (search.activeMatch) goToPage(search.activeMatch.pageId)
+  }, [search.activeMatch, goToPage])
+
+  // Resolve highlight geometry for the pages that currently have matches.
+  useEffect(() => {
+    const ids = Object.keys(search.matchesByPage)
+    if (ids.length > 0) search.resolveRects(ids)
+  }, [search])
+
+  const openSearch = useCallback(() => {
+    setRailCollapsed(false)
+    setRailTab('search')
+    // Focus after the panel has mounted.
+    requestAnimationFrame(() => document.querySelector('[aria-label="Search text"]')?.focus())
+  }, [])
+
+  /** Highlight rects keyed by page, for the viewer's text layer. */
+  const searchMatchesByPage = useMemo(() => {
+    const out = {}
+    for (const [pageId, rects] of Object.entries(search.rectsByPage)) {
+      const page = state.pages.find(p => p.id === pageId)
+      if (!page) continue
+      out[pageId] = rects.map(r => ({
+        left: `${r.left * 100}%`,
+        top: `${r.top * 100}%`,
+        width: `${r.width * 100}%`,
+        height: `${r.height * 100}%`,
+      }))
     }
-  }
+    return out
+  }, [search.rectsByPage, state.pages])
+
+  // Global shortcuts. Skipped while typing so they never eat real input.
+  useEffect(() => {
+    const onKey = (e) => {
+      const el = e.target
+      const typing = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'
+        || el.tagName === 'SELECT' || el.isContentEditable
+      const mod = e.ctrlKey || e.metaKey
+
+      if (mod && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        openSearch()
+        return
+      }
+      if (typing) return
+
+      if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return }
+      if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return }
+      if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); selectAllPages(); return }
+
+      if (e.key === 'Escape') {
+        if (search.matches.length > 0) search.clear()
+        else setActiveTool('select')
+        return
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedAnnotationId && currentPageId) {
+        e.preventDefault()
+        removeAnnotation(currentPageId, selectedAnnotationId)
+      }
+      if (e.key === 'F3' || (mod && e.key.toLowerCase() === 'g')) {
+        e.preventDefault()
+        e.shiftKey ? search.previous() : search.next()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo, search, selectedAnnotationId, currentPageId, removeAnnotation, setActiveTool, selectAllPages, openSearch])
 
   return (
-    <div className="min-h-screen bg-title-bg text-text-primary flex flex-col">
-      {/* Header */}
-      <div className="bg-section-bg border-b-2 border-accent px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="8" y="4" width="24" height="32" rx="2" stroke="currentColor" strokeWidth="2.5" fill="none"/>
-              <path d="M32 4l8 8v28a2 2 0 0 1-2 2H8" stroke="currentColor" strokeWidth="2.5" fill="none"/>
-              <rect x="14" y="14" width="12" height="2" rx="1" fill="var(--theme-accent)" opacity="0.85"/>
-              <rect x="14" y="20" width="16" height="2" rx="1" fill="var(--theme-steel-blue)" opacity="0.85"/>
-              <rect x="14" y="26" width="10" height="2" rx="1" fill="var(--theme-header-bg)" opacity="0.85"/>
+    <div className="h-screen flex flex-col bg-title-bg text-text-primary overflow-hidden">
+      <header className="flex items-center gap-3 px-4 py-2.5 bg-section-bg border-b border-border shrink-0">
+        <svg width="26" height="26" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <rect x="8" y="4" width="24" height="32" rx="2" stroke="currentColor" strokeWidth="2.5" />
+          <path d="M32 4l8 8v28a2 2 0 0 1-2 2H8" stroke="currentColor" strokeWidth="2.5" />
+          <rect x="14" y="14" width="12" height="2" rx="1" fill="var(--theme-accent)" />
+          <rect x="14" y="20" width="16" height="2" rx="1" fill="var(--theme-steel-blue)" />
+        </svg>
+        <h1 className="text-lg font-semibold tracking-wide">PDF Toolkit</h1>
+
+        {isReady && (
+          <>
+            <span className="text-xs text-text-primary/40 ml-2 truncate max-w-[280px]">
+              {state.pages.length} page{state.pages.length === 1 ? '' : 's'}
+            </span>
+            <button onClick={closeDocument} className="text-xs text-text-primary/60 hover:text-negative ml-1">
+              Close
+            </button>
+          </>
+        )}
+
+        <div className="ml-auto flex items-center gap-2">
+          <a href="https://planning-tool-belt.vercel.app" title="Back to Tool Belt"
+             className="p-1.5 rounded-lg hover:bg-alt-bg text-text-primary/70">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
             </svg>
-            <h1 className="text-2xl font-bold tracking-wide">PDF Toolkit</h1>
-          </div>
-          <div className="flex items-center gap-3">
-            <a
-              href="https://planning-tool-belt.vercel.app"
-              className="p-2 rounded-lg bg-dark-bg/50 border border-border hover:border-accent transition-colors"
-              title="Back to Tool Belt"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+          </a>
+          <button onClick={toggleTheme} title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                  className="p-1.5 rounded-lg hover:bg-alt-bg text-text-primary/70">
+            {theme === 'dark' ? (
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="12" cy="12" r="5" /><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" />
               </svg>
-            </a>
-            <ThemeToggle />
-          </div>
-        </div>
-      </div>
-
-      {/* Body: Sidebar + Content */}
-      <div className="flex flex-1 min-h-0">
-        {/* Sidebar */}
-        <div className="w-48 bg-dark-bg border-r border-border flex flex-col shrink-0">
-          {TOOLS.map(tool => (
-            <button
-              key={tool.id}
-              onClick={() => setActiveTool(tool.id)}
-              className={`flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors text-left ${
-                activeTool === tool.id
-                  ? 'bg-header-bg text-accent border-r-2 border-accent'
-                  : 'text-text-primary/70 hover:text-text-primary hover:bg-alt-bg'
-              }`}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d={tool.icon}/>
+            ) : (
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
-              {tool.label}
-            </button>
-          ))}
-          <div className="border-t border-border mt-2 pt-2">
-            <button
-              onClick={handleDownload}
-              disabled={pages.length === 0 || isProcessing}
-              className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-left w-full text-accent hover:bg-alt-bg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              Download
-            </button>
+            )}
+          </button>
+        </div>
+      </header>
+
+      {error && (
+        <div role="alert" className="flex items-center gap-3 px-4 py-2 bg-negative/15 border-b border-negative/40 text-sm shrink-0">
+          <span className="flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="text-xs underline">Dismiss</button>
+        </div>
+      )}
+
+      {!isReady ? (
+        <StartScreen />
+      ) : (
+        <>
+          <Ribbon onOpenPanel={() => {}} />
+          <div className="flex flex-1 min-h-0">
+            <LeftRail
+              search={search}
+              onGoToPage={goToPage}
+              collapsed={railCollapsed}
+              onToggle={() => setRailCollapsed(c => !c)}
+              tab={railTab}
+              setTab={setRailTab}
+            />
+            <PdfViewer
+              searchMatchesByPage={searchMatchesByPage}
+              activeMatch={search.activeMatchOnPage}
+              viewerRef={viewerRef}
+            />
+            {MODE_TOOLS.has(activeTool) && <ToolOptionsPanel />}
           </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 p-6 overflow-auto">
-          {activeTool === 'upload' && (
-            <div>
-              <UploadZone />
-              {pages.length > 0 && (
-                <div className="mt-6">
-                  <p className="text-sm text-steel-blue mb-3">{pages.length} page{pages.length !== 1 ? 's' : ''} loaded</p>
-                  <PageGrid />
-                </div>
-              )}
-            </div>
-          )}
-          {activeTool === 'manage' && <ManagePages />}
-          {activeTool === 'split' && <SplitTool />}
-          {activeTool === 'extract' && <ExtractPages />}
-          {activeTool === 'annotate' && <AnnotateEditor />}
-          {activeTool === 'signature' && <SignaturePad />}
-          {activeTool === 'watermark' && <WatermarkTool />}
-          {activeTool === 'headers' && <HeaderFooterTool />}
-          {activeTool === 'crop' && <CropTool />}
-          {activeTool === 'formfill' && <FormFillTool />}
-          {activeTool === 'bookmarks' && <BookmarkTool />}
-          {activeTool === 'exportimg' && <ExportImagesTool />}
-          {activeTool === 'bates' && <BatesNumberingTool />}
-          {activeTool === 'resize' && <PageResizeTool />}
-          {activeTool === 'rotate' && <RotatePagesTool />}
-          {activeTool === 'compress' && <CompressTool />}
-          {activeTool === 'grayscale' && <GrayscaleTool />}
-          {activeTool === 'flatten' && <FlattenForms />}
-        </div>
-      </div>
-
-      <PreviewModal />
+          <StatusBar onGoToPage={goToPage} />
+        </>
+      )}
     </div>
   )
 }
 
 export default function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <EditorProvider>
+      <Editor />
+    </EditorProvider>
   )
 }
