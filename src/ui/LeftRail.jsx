@@ -130,8 +130,8 @@ function ThumbnailList({ onGoToPage }) {
             </div>
             <div className="text-center text-[11px] mt-1 text-text-primary/60">{i + 1}</div>
             {isSelected && (
-              <div className="absolute top-2 left-2 w-4 h-4 rounded bg-accent flex items-center justify-center">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--theme-title-bg)" strokeWidth="3">
+              <div className="absolute top-2 left-2 w-4 h-4 rounded bg-accent-strong flex items-center justify-center">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--theme-on-accent)" strokeWidth="3">
                   <path d="M20 6L9 17l-5-5" />
                 </svg>
               </div>

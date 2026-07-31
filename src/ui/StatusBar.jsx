@@ -66,7 +66,7 @@ export default function StatusBar({ onGoToPage }) {
           <span className="truncate text-text-primary/70">{busy.label}</span>
           {busy.progress != null && (
             <div className="w-24 h-1 rounded-full bg-alt-bg overflow-hidden shrink-0">
-              <div className="h-full bg-accent" style={{ width: `${busy.progress * 100}%` }} />
+              <div className="h-full bg-accent-strong" style={{ width: `${busy.progress * 100}%` }} />
             </div>
           )}
         </div>

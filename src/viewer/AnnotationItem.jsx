@@ -129,7 +129,7 @@ export default function AnnotationItem({ annotation: ann, page, pageWidth, pageH
       {selected && HANDLES.map(([name, fx, fy]) => (
         <div
           key={name}
-          className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full bg-accent border border-white shadow"
+          className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full bg-accent-strong border border-white shadow"
           style={{ left: `${fx * 100}%`, top: `${fy * 100}%`, cursor: CURSORS[name] }}
           onPointerDown={(e) => startGesture(e, 'resize', name)}
           onPointerMove={onPointerMove}

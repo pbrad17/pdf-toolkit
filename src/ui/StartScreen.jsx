@@ -79,7 +79,7 @@ export default function StartScreen() {
             </div>
             <div className="h-1.5 rounded-full bg-alt-bg overflow-hidden">
               <div
-                className="h-full bg-accent transition-[width] duration-150"
+                className="h-full bg-accent-strong transition-[width] duration-150"
                 style={{ width: busy.progress != null ? `${busy.progress * 100}%` : '35%' }}
               />
             </div>
@@ -103,7 +103,7 @@ export default function StartScreen() {
                 placeholder="Document password"
                 className="flex-1 px-3 py-2 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent"
               />
-              <button type="submit" className="px-4 py-2 rounded-lg bg-accent text-title-bg text-sm font-medium">
+              <button type="submit" className="px-4 py-2 rounded-lg bg-accent-strong text-on-accent text-sm font-medium">
                 Unlock
               </button>
             </div>

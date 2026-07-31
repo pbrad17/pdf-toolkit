@@ -7,6 +7,8 @@
   --color-section-bg: var(--theme-section-bg);
   --color-header-bg: var(--theme-header-bg);
   --color-accent: var(--theme-accent);
+  --color-accent-strong: var(--theme-accent-strong);
+  --color-on-accent: var(--theme-on-accent);
   --color-steel-blue: var(--theme-steel-blue);
   --color-sage: var(--theme-sage);
   --color-input-teal: var(--theme-input-teal);
@@ -17,39 +19,106 @@
   --color-text-primary: var(--theme-text-primary);
 }
 
+/* ---------------------------------------------------------------------------
+   Theme ramp.
+
+   Stays in the Planning Tool Belt blue/amber family so this app still reads as
+   a sibling of the others, but the steps are rebuilt for a document editor
+   rather than a dashboard.
+
+   Two things drive the values:
+
+   1. The page is the subject. Chrome sits darker and less saturated than
+      before so a white page is the brightest thing on screen and the eye goes
+      there first. The old ramp put the surround close in luminance to the
+      page, which made the document fight the UI for attention.
+   2. Surfaces need distinguishable elevation. The old steps were nearly
+      equal-luminance blues, so a raised panel over a rail read as one flat
+      mass. Each step now moves enough to be legible, while borders move the
+      other way — quieter, because with real elevation steps a hard border no
+      longer has to do the separating on its own.
+
+   Token names are unchanged; only values move, plus additions at the end. Every
+   component already references these, so renaming would be churn for nothing.
+   --------------------------------------------------------------------------- */
+
 :root,
 [data-theme="dark"] {
-  --theme-title-bg: #1A2E3D;
-  --theme-dark-bg: #1E3242;
-  --theme-alt-bg: #243A4A;
-  --theme-section-bg: #2A4F65;
-  --theme-header-bg: #345B72;
-  --theme-accent: #F5A623;
-  --theme-steel-blue: #5B8FA8;
-  --theme-sage: #9BB55E;
+  --theme-title-bg: #101D27;      /* app canvas — the document surround */
+  --theme-dark-bg: #16262F;       /* rails and panels */
+  --theme-alt-bg: #1D323E;        /* raised: ribbon, inputs, hover */
+  --theme-section-bg: #24404E;    /* header bar */
+  --theme-header-bg: #2C4D5E;     /* active / pressed */
+  /* On dark surfaces the brand amber is already far past AA, so text and fill
+     are the same colour here. They only need to diverge in the light theme. */
+  --theme-accent: #F9AC2A;        /* accent TEXT and icons */
+  --theme-accent-strong: #F9AC2A; /* accent FILLS: buttons, active states */
+  --theme-on-accent: #101D27;     /* foreground on an accent fill */
+  --theme-steel-blue: #74A6C0;    /* lifted for legibility on dark surfaces */
+  --theme-sage: #A3BE66;
   --theme-input-teal: #7EC8C8;
   --theme-positive: #9BB55E;
   --theme-negative: #E88D4F;
-  --theme-border: #3D6B8E;
-  --theme-border-light: #2A4F65;
-  --theme-text-primary: #FFFFFF;
+  --theme-border: #2B4553;        /* quieter: elevation now carries separation */
+  --theme-border-light: #213845;
+  --theme-text-primary: #F2F7FA;
+
+  --theme-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35);
+  --theme-shadow-md: 0 2px 8px rgb(0 0 0 / 0.4);
+  --theme-shadow-lg: 0 8px 28px rgb(0 0 0 / 0.5);
+  /* Pages carry a rim as well as a drop shadow; on a dark surround a shadow
+     alone leaves a white page looking like it is floating with no edge. */
+  --theme-page-shadow: 0 2px 12px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(0 0 0 / 0.3);
 }
 
 [data-theme="light"] {
-  --theme-title-bg: #F0F4F8;
+  --theme-title-bg: #DFE7ED;      /* deliberately not white, so the page reads */
   --theme-dark-bg: #FFFFFF;
-  --theme-alt-bg: #E8EDF2;
-  --theme-section-bg: #D0DAE4;
-  --theme-header-bg: #B8C8D8;
-  --theme-accent: #D4890A;
-  --theme-steel-blue: #4A7A94;
-  --theme-sage: #6B8F2E;
-  --theme-input-teal: #A0D8D8;
-  --theme-positive: #6B8F2E;
-  --theme-negative: #C5652A;
-  --theme-border: #B0C4D8;
-  --theme-border-light: #D0DAE4;
-  --theme-text-primary: #1A2E3D;
+  --theme-alt-bg: #F0F4F7;
+  --theme-section-bg: #E4EBF1;
+  --theme-header-bg: #D2DEE7;
+  /* Amber on white is the one place this palette cannot have both things at
+     once: a vivid enough amber to read as the brand fails AA as small text.
+     Rather than dulling the brand everywhere, the two uses are split.
+     Measured against #FFFFFF / #F0F4F7 / #DFE7ED — every surface accent text
+     can land on — and against the foreground used on top of a fill.
+       accent        #8F5B00  5.73 / 5.18 / 4.58   (text, clears 4.5 on all)
+       accent-strong #D18A1E  2.85 on white         (fill only, never text)
+       on-accent     #101D27  6.00 on that fill     (text on the fill) */
+  --theme-accent: #8F5B00;
+  --theme-accent-strong: #D18A1E;
+  --theme-on-accent: #101D27;
+  --theme-steel-blue: #43738D;
+  --theme-sage: #5F8228;
+  --theme-input-teal: #7FC0C0;
+  --theme-positive: #5F8228;
+  --theme-negative: #B4541F;
+  --theme-border: #C6D4DF;
+  --theme-border-light: #E0E8EE;
+  --theme-text-primary: #12242F;
+
+  --theme-shadow-sm: 0 1px 2px rgb(16 29 39 / 0.08);
+  --theme-shadow-md: 0 2px 8px rgb(16 29 39 / 0.10);
+  --theme-shadow-lg: 0 8px 28px rgb(16 29 39 / 0.14);
+  --theme-page-shadow: 0 1px 4px rgb(16 29 39 / 0.16), 0 0 0 1px rgb(16 29 39 / 0.08);
+}
+
+/* ---------------------------------------------------------------------------
+   Density.
+
+   Compact/pro: the app is used for real work on a desktop, so more document and
+   more tools on screen beats generous padding. Expressed as tokens rather than
+   scattered utility classes so the whole shell can be retuned in one place —
+   and so a comfortable mode stays a possibility rather than a rewrite.
+   --------------------------------------------------------------------------- */
+:root {
+  --ui-ribbon-h: 56px;
+  --ui-row-h: 28px;
+  --ui-rail-w: 240px;
+  --ui-panel-w: 264px;
+  --ui-radius: 8px;
+  --ui-radius-sm: 6px;
+  --ui-gap: 6px;
 }
 
 body {
