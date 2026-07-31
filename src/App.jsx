@@ -9,6 +9,7 @@ import LeftRail from './ui/LeftRail'
 import StatusBar from './ui/StatusBar'
 import ToolOptionsPanel from './ui/ToolOptionsPanel'
 import { MODE_TOOLS } from './ui/toolRegistry'
+import { useSave } from './export/useSave'
 
 function Editor() {
   const {
@@ -18,6 +19,7 @@ function Editor() {
   } = useEditor()
 
   const search = useSearch(state.pages)
+  const { save, warnings, dismissWarnings } = useSave()
   const [railCollapsed, setRailCollapsed] = useState(false)
   const [railTab, setRailTab] = useState('pages')
   const viewerRef = useRef(null)
@@ -121,6 +123,17 @@ function Editor() {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          {isReady && (
+            <button
+              onClick={save}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-accent text-title-bg text-sm font-medium hover:opacity-90"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" />
+              </svg>
+              Save
+            </button>
+          )}
           <a href="https://planning-tool-belt.vercel.app" title="Back to Tool Belt"
              className="p-1.5 rounded-lg hover:bg-alt-bg text-text-primary/70">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -143,9 +156,21 @@ function Editor() {
       </header>
 
       {error && (
-        <div role="alert" className="flex items-center gap-3 px-4 py-2 bg-negative/15 border-b border-negative/40 text-sm shrink-0">
+        <div role="alert" className="flex items-start gap-3 px-4 py-2 bg-negative/15 border-b border-negative/40 text-sm shrink-0">
           <span className="flex-1">{error}</span>
-          <button onClick={() => setError(null)} className="text-xs underline">Dismiss</button>
+          <button onClick={() => setError(null)} className="text-xs underline shrink-0">Dismiss</button>
+        </div>
+      )}
+
+      {warnings.length > 0 && (
+        <div role="status" className="flex items-start gap-3 px-4 py-2 bg-accent/10 border-b border-accent/30 text-sm shrink-0">
+          <div className="flex-1">
+            <p className="font-medium mb-0.5">Saved, with {warnings.length} note{warnings.length === 1 ? '' : 's'}:</p>
+            <ul className="list-disc pl-5 text-xs text-text-primary/75 space-y-0.5">
+              {warnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+          </div>
+          <button onClick={dismissWarnings} className="text-xs underline shrink-0">Dismiss</button>
         </div>
       )}
 

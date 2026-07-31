@@ -2,6 +2,22 @@ import { useCallback, useRef, useState } from 'react'
 import { useEditor } from '../state/useEditor'
 import AnnotationItem from './AnnotationItem'
 
+/**
+ * Take pointer capture, tolerating failure.
+ *
+ * setPointerCapture throws if the pointer id is no longer active — which can
+ * happen when a pointer is released or cancelled between the event being queued
+ * and the handler running. Capture is an enhancement that keeps a drag tracking
+ * outside the element; losing it must never abort the gesture before it starts.
+ */
+function capturePointer(el, pointerId) {
+  try {
+    el?.setPointerCapture?.(pointerId)
+  } catch {
+    // Drag still works, it just stops tracking if the cursor leaves the page.
+  }
+}
+
 /** Tools that create an annotation by dragging out a rectangle. */
 const DRAG_TOOLS = new Set(['highlight', 'redact', 'stamp'])
 /** Tools that create an annotation with a single click. */
@@ -80,7 +96,7 @@ export default function AnnotationLayer({ page, width, height }) {
     }
     e.preventDefault()
     const pos = fractionAt(e)
-    surfaceRef.current.setPointerCapture?.(e.pointerId)
+    capturePointer(surfaceRef.current, e.pointerId)
 
     if (CLICK_TOOLS.has(activeTool)) {
       placeClickAnnotation(activeTool, pos)

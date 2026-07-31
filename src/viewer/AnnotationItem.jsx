@@ -50,7 +50,9 @@ export default function AnnotationItem({ annotation: ann, page, pageWidth, pageH
   const startGesture = useCallback((e, mode, handle) => {
     e.stopPropagation()
     e.preventDefault()
-    e.currentTarget.setPointerCapture?.(e.pointerId)
+    // Capture keeps the drag tracking if the cursor leaves the element, but it
+    // throws when the pointer is already gone; a gesture must not depend on it.
+    try { e.currentTarget.setPointerCapture?.(e.pointerId) } catch { /* non-fatal */ }
     setSelectedAnnotationId(ann.id)
     beginInteraction()
     dragRef.current = {
