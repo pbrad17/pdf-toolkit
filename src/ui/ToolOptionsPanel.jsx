@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import { useEditor } from '../state/useEditor'
 import { SHAPES, FILLABLE_SHAPES, FLIPPABLE_SHAPES } from '../utils/shapeDefinitions'
 
@@ -226,6 +227,9 @@ function ToolSettings({ tool, options, setOption, signatures }) {
         </>
       )
 
+    case 'image':
+      return <ImageToolSettings options={options} setOption={setOption} />
+
     case 'redact':
       return (
         <>
@@ -251,6 +255,92 @@ function ToolSettings({ tool, options, setOption, signatures }) {
     default:
       return null
   }
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Image placement settings.
+ *
+ * Without this the Image tool was inert: the panel rendered nothing, so
+ * `toolOptions.image.dataUrl` stayed null and clicking the page placed nothing
+ * at all. The tool needs somewhere to accept a file before it can do anything.
+ *
+ * The natural size is measured on load and kept as an aspect ratio, because the
+ * annotation stores only a width — height is derived from the ratio so resizing
+ * can never distort the picture.
+ */
+function ImageToolSettings({ options, setOption }) {
+  const inputRef = useRef(null)
+  const [problem, setProblem] = useState(null)
+
+  const accept = (file) => {
+    if (!file) return
+    if (!/^image\/(png|jpeg|gif|webp)$/i.test(file.type)) {
+      setProblem('Choose a PNG, JPEG, GIF or WebP image.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onerror = () => setProblem('That file could not be read.')
+    reader.onload = () => {
+      const dataUrl = String(reader.result)
+      const img = new Image()
+      img.onerror = () => setProblem('That file is not a readable image.')
+      img.onload = () => {
+        setProblem(null)
+        setOption('image', {
+          dataUrl,
+          aspect: img.naturalWidth / Math.max(1, img.naturalHeight),
+        })
+      }
+      img.src = dataUrl
+    }
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <>
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Image</h3>
+
+      <button
+        onClick={() => inputRef.current?.click()}
+        className="w-full px-3 py-2 rounded-lg border border-border hover:border-accent text-sm transition-colors"
+      >
+        {options.image.dataUrl ? 'Choose a different image' : 'Choose an image…'}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/gif,image/webp"
+        className="hidden"
+        onChange={(e) => { accept(e.target.files?.[0]); e.target.value = '' }}
+      />
+
+      {options.image.dataUrl && (
+        <>
+          <div className="p-2 rounded-lg bg-white border border-border">
+            <img src={options.image.dataUrl} alt="Selected" className="max-h-24 mx-auto object-contain" />
+          </div>
+          <Field label={`Width — ${Math.round(options.image.width * 100)}% of page`}>
+            <input
+              type="range" min="0.05" max="1" step="0.01"
+              value={options.image.width}
+              onChange={(e) => setOption('image', { width: +e.target.value })}
+              className="w-full"
+            />
+          </Field>
+        </>
+      )}
+
+      {problem && <p className="text-[11px] text-negative leading-snug">{problem}</p>}
+
+      <p className="text-[11px] text-text-primary/50 leading-snug">
+        {options.image.dataUrl
+          ? 'Click the page to place it.'
+          : 'Pick an image first, then click the page to place it.'}
+      </p>
+    </>
+  )
 }
 
 // ---------------------------------------------------------------------------

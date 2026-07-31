@@ -13,6 +13,15 @@ import { effectiveRotation } from '../state/documentModel'
 import { getSpans, resolveFontKey } from '../utils/richTextUtils'
 import { drawShapePdf } from '../utils/shapeDefinitions'
 import { rasterizeRedactedPage, textUnderRedactions, verifyRedaction } from './redaction'
+import { applyResize } from './resize'
+import { applyTextEdits } from './textEdits'
+import { applyOcrLayer } from './ocrLayer'
+import { applyWatermark } from './watermark'
+import { applyHeaderFooter } from './headerFooter'
+import { applyBates } from './bates'
+import { applyFormValues } from './forms'
+import { applyBookmarks } from './bookmarks'
+import { encryptPdfBytes, isProtected } from './encryption'
 
 const hexToRgb = (hex) => {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '#000000')
@@ -107,11 +116,84 @@ export async function buildPdf({ sources, state, onProgress = () => {} }) {
       }
     }
 
+    /**
+     * Per-page features, in the order they have to run.
+     *
+     * Resize goes first because it changes the page box, and everything after
+     * it positions against page edges — stamping a footer and then resizing
+     * would leave the footer floating in the middle of the page.
+     *
+     * Text edits precede the OCR layer and annotations so their opaque cover
+     * rectangles cannot paint over content added afterwards.
+     *
+     * Watermark, header/footer and Bates come last so they sit above the
+     * document rather than being buried by it.
+     */
+    const ctx = {
+      pdfDoc: out,
+      getFont,
+      pageIndex: i,
+      pageCount: total,
+      pageId: page.id,
+      rgb,
+      degrees,
+      hexToRgb,
+    }
+
+    const perPage = [
+      ['resize', applyResize, page.resize],
+      ['text edit', applyTextEdits, state.textEdits[page.id]],
+      ['OCR layer', applyOcrLayer, state.ocr[page.id]],
+    ]
+    for (const [label, fn, config] of perPage) {
+      if (!config) continue
+      try {
+        await fn(target, config, ctx)
+      } catch (err) {
+        warnings.push(`Page ${i + 1}: could not apply ${label} (${err.message}).`)
+      }
+    }
+
     await drawAnnotations({
       out, target,
       annotations: (state.annotations[page.id] || []).filter(a => a.type !== 'redact'),
       getFont, warnings, pageNumber: i + 1,
     })
+
+    const overlays = [
+      ['watermark', applyWatermark, state.doc.watermark],
+      ['header and footer', applyHeaderFooter, state.doc.headerFooter],
+      ['Bates number', applyBates, state.doc.bates],
+    ]
+    for (const [label, fn, config] of overlays) {
+      if (!config) continue
+      try {
+        await fn(target, config, ctx)
+      } catch (err) {
+        warnings.push(`Page ${i + 1}: could not apply ${label} (${err.message}).`)
+      }
+    }
+  }
+
+  // Document-level features. These act on the whole PDF rather than one page,
+  // so they run once after every page exists.
+  if (state.doc.formValues && Object.keys(state.doc.formValues).length > 0) {
+    try {
+      await applyFormValues(out, state.doc.formValues, { flatten: state.doc.flattenForms })
+    } catch (err) {
+      warnings.push(`Could not fill form fields (${err.message}).`)
+    }
+  }
+
+  if (state.doc.bookmarks?.length > 0) {
+    try {
+      const pageIdToIndex = new Map(state.pages.map((p, idx) => [p.id, idx]))
+      await applyBookmarks(out, state.doc.bookmarks, { pageIdToIndex })
+    } catch (err) {
+      // A malformed outline tree can make the whole file unopenable in some
+      // readers, so a failure here drops the bookmarks rather than the document.
+      warnings.push(`Could not write bookmarks, so they were left out (${err.message}).`)
+    }
   }
 
   if (state.doc.metadata) applyMetadata(out, state.doc.metadata)
@@ -127,6 +209,30 @@ export async function buildPdf({ sources, state, onProgress = () => {} }) {
       throw new Error(
         `Redaction verification failed: text that should have been removed is still present in the output (${check.leaked.length} item(s)). ` +
         'The file has not been saved. Please report this — it is a bug, and saving anyway would give you a document that looks redacted but is not.',
+      )
+    }
+  }
+
+  /**
+   * Encryption is deliberately last.
+   *
+   * The redaction check above re-parses the output to prove the covered text is
+   * gone. Encrypting first would leave that check reading ciphertext, where it
+   * would find no match and report success for the wrong reason — a verifier
+   * that passes because it cannot read the file is worse than none.
+   */
+  if (isProtected(state.doc.encryption)) {
+    onProgress(0.99, 'Encrypting')
+    try {
+      // encryptPdfBytes reopens its own output with pdf.js and throws if the
+      // result does not match what was asked for, so there is no separate
+      // verification step to run here.
+      bytes = await encryptPdfBytes(bytes, state.doc.encryption)
+    } catch (err) {
+      throw new Error(
+        `Encryption could not be confirmed: ${err.message}. The file has not been ` +
+        'saved, because saving it would hand you a document you believe is password ' +
+        'protected when it is not.',
       )
     }
   }

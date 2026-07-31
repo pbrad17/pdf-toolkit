@@ -7,8 +7,9 @@ import StartScreen from './ui/StartScreen'
 import Ribbon from './ui/Ribbon'
 import LeftRail from './ui/LeftRail'
 import StatusBar from './ui/StatusBar'
-import ToolOptionsPanel from './ui/ToolOptionsPanel'
-import { MODE_TOOLS } from './ui/toolRegistry'
+import ToolPanel from './ui/panelRegistry'
+import { hasPanel } from './ui/panelMap'
+import RestorePrompt from './ui/RestorePrompt'
 import { useSave } from './export/useSave'
 
 function Editor() {
@@ -174,11 +175,15 @@ function Editor() {
         </div>
       )}
 
+      {/* Offered, never automatic: a document reappearing by itself on a
+          shared machine would be a privacy failure, not a convenience. */}
+      <RestorePrompt />
+
       {!isReady ? (
         <StartScreen />
       ) : (
         <>
-          <Ribbon onOpenPanel={() => {}} />
+          <Ribbon onOpenPanel={setActiveTool} />
           <div className="flex flex-1 min-h-0">
             <LeftRail
               search={search}
@@ -193,7 +198,7 @@ function Editor() {
               activeMatch={search.activeMatchOnPage}
               viewerRef={viewerRef}
             />
-            {MODE_TOOLS.has(activeTool) && <ToolOptionsPanel />}
+            {hasPanel(activeTool) && <ToolPanel toolId={activeTool} />}
           </div>
           <StatusBar onGoToPage={goToPage} />
         </>

@@ -7,6 +7,7 @@ import {
 } from './documentModel'
 import { EditorContext } from './editorContextObject'
 import { registerSource, getPageProxy, releaseAll, probeSource } from '../utils/pdfRegistry'
+import { createAutosaver, newSessionId, prepareRestore } from './persistence'
 
 // ---------------------------------------------------------------------------
 // Reducer
@@ -145,6 +146,22 @@ export function EditorProvider({ children }) {
   /** Pre-gesture snapshot, held between beginInteraction and endInteraction. */
   const gestureRef = useRef(null)
 
+  /**
+   * Autosave driver, created once per session.
+   *
+   * Built in a lazy state initialiser rather than assigned to a ref during
+   * render: a ref write during render is not safe under concurrent rendering,
+   * and this must be constructed exactly once — a second driver would mean two
+   * timers racing to write the same session row.
+   *
+   * setSaveStatus is a stable setter, so capturing it here is fine.
+   */
+  const [saveStatus, setSaveStatus] = useState(null)
+  const [autosaver] = useState(() => createAutosaver({
+    sessionId: newSessionId(),
+    onStatus: setSaveStatus,
+  }))
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     localStorage.setItem('pdftoolkit-theme', theme)
@@ -275,6 +292,38 @@ export function EditorProvider({ children }) {
     () => state.pages.length > 0 && baseline != null && hasEdits(state, baseline),
     [state, baseline],
   )
+
+  /**
+   * Queue an autosave whenever the document changes.
+   *
+   * Source bytes are handed over on every call, but persistence writes them
+   * only once per session — they are immutable, and rewriting tens of megabytes
+   * on each keystroke would be the entire cost of this feature for no benefit.
+   */
+  useEffect(() => {
+    if (state.pages.length === 0) return
+    autosaver.schedule({ sources, state })
+  }, [state, sources, autosaver])
+
+  /**
+   * Restore a session the user explicitly chose to bring back.
+   *
+   * prepareRestore re-registers each source with the pdf.js registry and bumps
+   * the id counter past everything in the restored state, so newly created
+   * pages and annotations cannot collide with restored ones.
+   */
+  const restoreSession = useCallback(async (record) => {
+    const { sources: restored, failures, state: restoredState } = await prepareRestore(record)
+    setSources(restored)
+    dispatch({ type: 'load', state: restoredState })
+    if (failures.length > 0) {
+      setError(
+        `Restored the session, but ${failures.length} file(s) could not be read and were left out: ` +
+        failures.map(f => f.name).join(', '),
+      )
+    }
+    return { failures }
+  }, [])
 
   // -------------------------------------------------------------------------
   // Page operations
@@ -465,6 +514,7 @@ export function EditorProvider({ children }) {
 
     addFiles, closeDocument,
     busy, setBusy, error, setError,
+    restoreSession, saveStatus, autosaver,
 
     rotatePages, deletePages, duplicatePages, movePage, reorderPages,
     cropPages, resizePages,
