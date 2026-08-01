@@ -92,17 +92,39 @@ export default function PageCanvas({ page, scale, width, height, onRendered }) {
    * (`renderKey === renderedKey`), so changing page or scale marks the canvas
    * stale without an effect having to synchronously reset a status field — and
    * without remounting the canvas, which would flicker on every zoom step.
+   *
+   * The crop has to enter the signature by value. As a bare "is cropped" flag it
+   * reported a page as current while the user dragged the crop edges, which is
+   * the one moment the picture is changing on every frame.
    */
-  const renderKey = `${page.id}:${page.rotation}:${page.crop ? 'c' : 'u'}:${scale.toFixed(4)}`
+  const cropKey = page.crop
+    ? `${page.crop.left || 0},${page.crop.right || 0},${page.crop.top || 0},${page.crop.bottom || 0}`
+    : 'u'
+  const renderKey = `${page.id}:${page.rotation}:${cropKey}:${scale.toFixed(4)}`
   const [rendered, setRendered] = useState(null)
   const status = rendered === renderKey ? 'ready' : rendered === `error:${renderKey}` ? 'error' : 'pending'
+
+  /**
+   * Signature of the image sitting on the canvas bitmap right now.
+   *
+   * Every commit deep-clones the edit state, so `page` is a fresh object after
+   * any edit anywhere in the document — annotating page 40 replaces the object
+   * for page 1. That re-enters this effect, and its first act is to reassign
+   * canvas.width, which wipes the bitmap while `rendered` still equals renderKey
+   * and so holds the canvas at full opacity with no skeleton over it. The result
+   * was a blank white sheet, and a blank thumbnail for every page in the rail,
+   * for the length of a re-render nobody asked for. renderKey already names
+   * everything the render reads, so when it has not moved there is nothing to
+   * repaint.
+   */
+  const paintedRef = useRef(null)
 
   useEffect(() => {
     let cancelled = false
 
     async function render() {
       const canvas = canvasRef.current
-      if (!canvas) return
+      if (!canvas || paintedRef.current === renderKey) return
 
       try {
         const proxy = await getPageProxy(page.sourceId, page.sourceIndex)
@@ -117,6 +139,9 @@ export default function PageCanvas({ page, scale, width, height, onRendered }) {
         const wanted = crop.width * crop.height * dpr * dpr
         const res = wanted > MAX_CANVAS_PIXELS ? Math.sqrt(MAX_CANVAS_PIXELS / wanted) * dpr : dpr
 
+        // Resizing the backing store wipes it, so the bitmap is stale from here
+        // until the render lands.
+        paintedRef.current = null
         canvas.width = Math.max(1, Math.floor(crop.width * res))
         canvas.height = Math.max(1, Math.floor(crop.height * res))
         canvas.style.width = `${Math.round(crop.width)}px`
@@ -134,6 +159,7 @@ export default function PageCanvas({ page, scale, width, height, onRendered }) {
         await task.promise
         if (cancelled) return
 
+        paintedRef.current = renderKey
         setRendered(renderKey)
         onRendered?.(page.id)
       } catch (err) {

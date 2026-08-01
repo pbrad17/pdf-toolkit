@@ -15,7 +15,7 @@ import { cropRectInViewport, viewportRotation } from './geometry'
  * the layer must be offset by the same crop origin the canvas uses or selection
  * drifts away from the visible text on cropped pages.
  */
-export default function TextLayer({ page, scale, searchMatches = [], activeMatchIndex = -1 }) {
+export default function TextLayer({ page, scale, searchMatches = [], activeRectIndices = [] }) {
   const containerRef = useRef(null)
   const layerRef = useRef(null)
 
@@ -103,7 +103,10 @@ export default function TextLayer({ page, scale, searchMatches = [], activeMatch
         <div
           key={i}
           className={`absolute pointer-events-none rounded-[1px] ${
-            i === activeMatchIndex
+            // A list, not an index: the active match can own several rects when
+            // it spans a space or a line break, and marking only one of them
+            // rings half a phrase.
+            activeRectIndices.includes(i)
               ? 'bg-accent-soft-border/55 ring-1 ring-accent-soft-border'
               : 'bg-accent-soft-border/25'
           }`}

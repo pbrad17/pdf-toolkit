@@ -53,12 +53,22 @@ export default function AnnotationItem({ annotation: ann, page, pageWidth, pageH
   const dragRef = useRef(null)
 
   const aspect = ann.aspect || 1
+  /**
+   * Height an aspect-locked annotation takes up, per unit of its width, both as
+   * fractions of the page. The gesture maths works in page fractions, so the
+   * derived height has to be expressed in them too — mixing it with raw pixels
+   * is what let a north drag resize by a page-height fraction against a
+   * page-width one.
+   */
+  const heightPerWidth = pageWidth / (aspect * Math.max(1, pageHeight))
+  const heightFraction = ASPECT_LOCKED.has(ann.type)
+    ? (ann.width ?? 0.15) * heightPerWidth
+    : (ann.height ?? 0.04)
+
   const left = ann.x * pageWidth
   const top = ann.y * pageHeight
   const width = (ann.width ?? 0.15) * pageWidth
-  const height = ASPECT_LOCKED.has(ann.type)
-    ? width / aspect
-    : (ann.height ?? 0.04) * pageHeight
+  const height = heightFraction * pageHeight
 
   const startGesture = useCallback((e, mode, handle) => {
     e.stopPropagation()
@@ -72,9 +82,9 @@ export default function AnnotationItem({ annotation: ann, page, pageWidth, pageH
       mode, handle,
       startX: e.clientX,
       startY: e.clientY,
-      origin: { x: ann.x, y: ann.y, width: ann.width ?? 0.15, height: ann.height ?? 0.04 },
+      origin: { x: ann.x, y: ann.y, width: ann.width ?? 0.15, height: heightFraction },
     }
-  }, [ann, beginInteraction, setSelectedAnnotationId])
+  }, [ann, heightFraction, beginInteraction, setSelectedAnnotationId])
 
   const onPointerMove = useCallback((e) => {
     const drag = dragRef.current
@@ -86,7 +96,11 @@ export default function AnnotationItem({ annotation: ann, page, pageWidth, pageH
     if (drag.mode === 'move') {
       updateAnnotationLive(page.id, ann.id, {
         x: Math.max(0, Math.min(1 - o.width, o.x + dx)),
-        y: Math.max(0, Math.min(1, o.y + dy)),
+        // Bounded by the bottom edge for the same reason x is bounded by the
+        // right one. Clamping to 1 instead let the whole box be dragged past
+        // the foot of the page, where it is invisible on screen and lands
+        // below the page box on export — the annotation is simply gone.
+        y: Math.max(0, Math.min(1 - o.height, o.y + dy)),
       })
       return
     }
@@ -102,12 +116,23 @@ export default function AnnotationItem({ annotation: ann, page, pageWidth, pageH
     if (h.includes('s')) { hh = Math.max(MIN, o.height + dy) }
 
     if (ASPECT_LOCKED.has(ann.type)) {
-      // Height is derived from width for these, so only width is stored.
-      updateAnnotationLive(page.id, ann.id, { x, y, width: w })
+      // Height is derived from width for these, so only width is stored — and
+      // a handle that moved only a horizontal edge has to be re-expressed as a
+      // width change. Storing the raw x/y/w from above instead meant a north
+      // drag slid the whole signature up the page rather than growing it, and
+      // a south drag did nothing at all: its height never reached the state.
+      const vertical = h === 'n' || h === 's'
+      const nextWidth = Math.max(MIN, vertical ? hh / heightPerWidth : w)
+      updateAnnotationLive(page.id, ann.id, {
+        x,
+        // A north drag pins the bottom edge; every other handle pins the top.
+        y: h.includes('n') ? o.y + o.height - nextWidth * heightPerWidth : o.y,
+        width: nextWidth,
+      })
     } else {
       updateAnnotationLive(page.id, ann.id, { x, y, width: w, height: hh })
     }
-  }, [ann, page.id, pageWidth, pageHeight, updateAnnotationLive])
+  }, [ann, page.id, pageWidth, pageHeight, heightPerWidth, updateAnnotationLive])
 
   const endGesture = useCallback(() => {
     const drag = dragRef.current
@@ -146,7 +171,7 @@ export default function AnnotationItem({ annotation: ann, page, pageWidth, pageH
         if (e.key === 'Delete' || e.key === 'Backspace') removeAnnotation(page.id, ann.id)
       }}
     >
-      <AnnotationBody ann={ann} width={width} pageWidth={pageWidth} opacity={ann.opacity ?? 1} />
+      <AnnotationBody ann={ann} pageWidth={pageWidth} opacity={ann.opacity ?? 1} />
 
       {selected && HANDLES.map(([name, fx, fy]) => (
         // The hit target is the 16px box; the mark inside it is 8px. A square
@@ -173,7 +198,7 @@ export default function AnnotationItem({ annotation: ann, page, pageWidth, pageH
 }
 
 /** Visual for each annotation type. Kept separate so gestures stay readable. */
-function AnnotationBody({ ann, width, pageWidth, opacity = 1 }) {
+function AnnotationBody({ ann, pageWidth, opacity = 1 }) {
   switch (ann.type) {
     case 'text': {
       const spans = getSpans(ann)
@@ -224,11 +249,16 @@ function AnnotationBody({ ann, width, pageWidth, opacity = 1 }) {
     case 'draw':
       return (
         <svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none" style={{ opacity }} className="pointer-events-none overflow-visible">
+          {/* non-scaling-stroke already takes the width in CSS pixels rather
+              than in the 0..1 viewBox units, so dividing by the box width
+              divided it a second time: a 10px pen came out at 10/183 of a
+              pixel, a ghost hairline, the instant the stroke was committed —
+              while the placement preview beside it drew the full 10px. */}
           <polyline
             points={(ann.points || []).map(p => `${p.x},${p.y}`).join(' ')}
             fill="none"
             stroke={ann.color || '#000'}
-            strokeWidth={(ann.strokeWidth || 2) / Math.max(width, 1)}
+            strokeWidth={ann.strokeWidth || 2}
             strokeLinecap="round"
             strokeLinejoin="round"
             vectorEffect="non-scaling-stroke"

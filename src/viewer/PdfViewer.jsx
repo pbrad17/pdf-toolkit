@@ -9,6 +9,9 @@ import {
 } from './geometry'
 import { isPlacementTool } from '../ui/toolRegistry'
 
+/** Shared empty list, so pages without the active match keep a stable prop. */
+const NO_RECTS = []
+
 /**
  * The continuous document view.
  *
@@ -207,8 +210,8 @@ export default function PdfViewer({ searchMatchesByPage, activeMatch, viewerRef 
                     page={page}
                     scale={scale}
                     searchMatches={searchMatchesByPage?.[page.id] || []}
-                    activeMatchIndex={
-                      activeMatch?.pageId === page.id ? activeMatch.indexOnPage : -1
+                    activeRectIndices={
+                      activeMatch?.pageId === page.id ? activeMatch.rectIndices : NO_RECTS
                     }
                   />
                   <AnnotationLayer

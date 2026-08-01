@@ -135,22 +135,59 @@ export async function textUnderRedactions(page, redactions) {
   for (const item of entry.items) {
     if (typeof item.str !== 'string' || !item.str.trim() || !item.width) continue
 
-    const tx = Util.transform(viewport.transform, item.transform)
-    const h = Math.hypot(tx[2], tx[3]) || item.height || 10
-    const box = {
-      left: (tx[4] - crop.x) / crop.width,
-      top: (tx[5] - h - crop.y) / crop.height,
-      right: (tx[4] + item.width * viewport.scale - crop.x) / crop.width,
-      bottom: (tx[5] - crop.y) / crop.height,
-    }
+    const box = itemBox(Util, item, viewport, crop)
+    if (!box) continue
 
-    const hit = redactions.some(r => (
-      box.left < r.x + r.width && box.right > r.x &&
-      box.top < r.y + r.height && box.bottom > r.y
-    ))
+    // Marks are normalized because a drag that finished above or left of where
+    // it started is stored with a negative extent, and an un-normalized compare
+    // never intersects anything.
+    const hit = redactions.some(r => {
+      const x0 = Math.min(r.x, r.x + r.width)
+      const x1 = Math.max(r.x, r.x + r.width)
+      const y0 = Math.min(r.y, r.y + r.height)
+      const y1 = Math.max(r.y, r.y + r.height)
+      return box.left < x1 && box.right > x0 && box.top < y1 && box.bottom > y0
+    })
     if (hit) covered.push(item.str.trim())
   }
   return covered
+}
+
+/**
+ * A text item's bounding box, as fractions of the cropped display box.
+ *
+ * The item is a quad, not a rectangle: the combined transform carries the page's
+ * rotation, so on a turned page the run advances down or up the screen rather
+ * than across it. Taking the advance and ascent vectors from the transform and
+ * bounding all four corners is the only form that holds at every rotation —
+ * assuming the run extends rightwards from its origin puts the box on the wrong
+ * axis the moment the page is quarter-turned, and nothing intersects the marks.
+ */
+function itemBox(Util, item, viewport, crop) {
+  const tx = Util.transform(viewport.transform, item.transform)
+
+  const measured = Math.hypot(tx[2], tx[3])
+  const ascent = measured || (item.height || 10) * viewport.scale
+  const advance = Math.hypot(tx[0], tx[1])
+  if (!(ascent > 0) || !(advance > 0)) return null
+
+  const run = item.width * viewport.scale
+  const ax = (tx[0] / advance) * run
+  const ay = (tx[1] / advance) * run
+  // A degenerate vertical vector still needs a direction, so fall back to the
+  // normal of the writing direction rather than collapsing the box to a line.
+  const ux = measured ? tx[2] : (tx[1] / advance) * ascent
+  const uy = measured ? tx[3] : (-tx[0] / advance) * ascent
+
+  const xs = [tx[4], tx[4] + ax, tx[4] + ux, tx[4] + ax + ux]
+  const ys = [tx[5], tx[5] + ay, tx[5] + uy, tx[5] + ay + uy]
+
+  return {
+    left: (Math.min(...xs) - crop.x) / crop.width,
+    right: (Math.max(...xs) - crop.x) / crop.width,
+    top: (Math.min(...ys) - crop.y) / crop.height,
+    bottom: (Math.max(...ys) - crop.y) / crop.height,
+  }
 }
 
 /**
@@ -161,29 +198,52 @@ export async function textUnderRedactions(page, redactions) {
  * file the user believes is sanitised, when it is not, is the worst possible
  * outcome, and failing loudly is strictly better.
  *
+ * An entry may be a bare string or `{text, pageIndex}`. The second form is
+ * strongly preferred and the reason it exists is a false positive that stops a
+ * save outright: a phrase covered on one page very often appears legitimately on
+ * another — a running header, a party's name, a document title — and searching
+ * the whole file finds that untouched copy and calls it a leak. Scoped to the
+ * page the mark was on, the check means what it says.
+ *
+ * @param {Uint8Array} pdfBytes
+ * @param {Array<string|{text: string, pageIndex: number}>} expectedRemoved
  * @returns {Promise<{ok: boolean, leaked: string[]}>}
  */
 export async function verifyRedaction(pdfBytes, expectedRemoved) {
-  const phrases = expectedRemoved
-    .map(s => s.trim())
-    .filter(s => s.length >= 3) // very short fragments collide with ordinary text
-  if (phrases.length === 0) return { ok: true, leaked: [] }
+  // Very short fragments collide with ordinary text, so they prove nothing.
+  const wanted = expectedRemoved
+    .map(entry => (typeof entry === 'string'
+      ? { text: entry.trim(), pageIndex: null }
+      : { text: String(entry?.text ?? '').trim(), pageIndex: entry?.pageIndex ?? null }))
+    .filter(entry => entry.text.length >= 3)
+  if (wanted.length === 0) return { ok: true, leaked: [] }
 
   const pdfjsLib = (await import('../utils/pdfSetup')).default
   const doc = await pdfjsLib.getDocument({ data: pdfBytes.slice() }).promise
 
-  let all = ''
+  const perPage = []
   try {
     for (let i = 1; i <= doc.numPages; i++) {
       const p = await doc.getPage(i)
       const content = await p.getTextContent()
-      all += content.items.map(it => (typeof it.str === 'string' ? it.str : '')).join(' ')
+      perPage.push(content.items
+        .map(it => (typeof it.str === 'string' ? it.str : ''))
+        .join(' ')
+        .replace(/\s+/g, ' '))
     }
   } finally {
     await doc.destroy()
   }
 
-  const haystack = all.replace(/\s+/g, ' ')
-  const leaked = [...new Set(phrases.filter(p => haystack.includes(p)))]
+  const everywhere = perPage.join(' ')
+  const leaked = [...new Set(
+    wanted
+      .filter(({ text, pageIndex }) => (
+        pageIndex == null
+          ? everywhere.includes(text)
+          : (perPage[pageIndex] ?? '').includes(text)
+      ))
+      .map(entry => entry.text),
+  )]
   return { ok: leaked.length === 0, leaked }
 }

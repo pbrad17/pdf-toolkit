@@ -21,8 +21,8 @@ const cache = new Map()
 const keyFor = (page) => `${page.sourceId}:${page.sourceIndex}`
 
 /**
- * Normalises text for matching: collapses whitespace and strips the soft
- * hyphens and ligature artefacts that otherwise make ordinary words unfindable.
+ * Normalises text for matching: strips the soft hyphens and ligature artefacts
+ * that otherwise make ordinary words unfindable.
  */
 function normalize(str) {
   return str
@@ -76,7 +76,15 @@ export async function searchDocument(pages, query, { caseSensitive = false, whol
   const needle = normalize(query)
   if (!needle.trim()) return []
 
-  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  // A space in the query has to match whatever separates the words on the page,
+  // and at a line end that separator is the '\n' extraction inserts. Matching it
+  // literally made any phrase unfindable the moment it happened to wrap — which
+  // for a two-word phrase is most of the time.
+  const escaped = needle
+    .trim()
+    .split(/\s+/)
+    .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('\\s+')
   const pattern = wholeWord ? `\\b${escaped}\\b` : escaped
   const flags = caseSensitive ? 'g' : 'gi'
 

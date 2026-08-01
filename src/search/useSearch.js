@@ -114,17 +114,23 @@ export function useSearch(pages) {
   const activeMatch = activeIndex >= 0 ? matches[activeIndex] : null
 
   /**
-   * Position of the active match within its own page, so the page's highlight
-   * list knows which rect to emphasise.
+   * Which of a page's highlight rects belong to the active match.
+   *
+   * Not a position in the match list: a match that spans several text items —
+   * two words either side of a space, or a phrase across a line break — yields
+   * one rect per item, so the rect list is longer than the match list and the
+   * two indices diverge from the first multi-item match onwards. Used as an
+   * index it put the ring on a different word than the one the viewer had just
+   * scrolled to. The rects carry the match they came from, so the mapping is
+   * done here, where both lists are still whole.
    */
   const activeMatchOnPage = useMemo(() => {
     if (!activeMatch) return null
-    const onPage = matchesByPage[activeMatch.pageId] || []
-    return {
-      pageId: activeMatch.pageId,
-      indexOnPage: onPage.findIndex(m => m.start === activeMatch.start),
-    }
-  }, [activeMatch, matchesByPage])
+    const rects = rectsByPage[activeMatch.pageId] || []
+    const rectIndices = []
+    rects.forEach((r, i) => { if (r.matchStart === activeMatch.start) rectIndices.push(i) })
+    return { pageId: activeMatch.pageId, rectIndices }
+  }, [activeMatch, rectsByPage])
 
   useEffect(() => () => clearSearchCache(), [])
 

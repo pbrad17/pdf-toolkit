@@ -48,6 +48,8 @@ export function createPage(sourceId, sourceIndex, size, intrinsicRotation = 0) {
     size: { width: size.width, height: size.height },
     /** Crop insets in points from each edge, or null for uncropped. */
     crop: null,
+    /** Pending paper size `{ width, height, mode }`, applied at export. */
+    resize: null,
     /** Set when a page is replaced by a flattened raster (redaction, grayscale). */
     raster: null,
   }
@@ -181,7 +183,10 @@ export const ocrFor = (state, pageId) => state.ocr[pageId] || null
 export function hasEdits(state, originalPageIds) {
   if (state.pages.length !== originalPageIds.length) return true
   if (state.pages.some((p, i) => p.id !== originalPageIds[i])) return true
-  if (state.pages.some(p => p.rotation !== 0 || p.crop || p.raster)) return true
+  // resize belongs here even though nothing on screen shows it: the viewer draws
+  // every page at its original size and the new box is only written at export,
+  // so a pending resize is the one page edit the user cannot see they have made.
+  if (state.pages.some(p => p.rotation !== 0 || p.crop || p.resize || p.raster)) return true
   const nonEmpty = (map) => Object.values(map).some(v => v && v.length > 0)
   if (nonEmpty(state.annotations) || nonEmpty(state.textEdits) || nonEmpty(state.redactions)) return true
   const d = state.doc
