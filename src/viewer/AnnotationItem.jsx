@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { createElement, useCallback, useRef } from 'react'
 import { useEditor } from '../state/useEditor'
 import { getSpans, getBaseFontCSS } from '../utils/richTextUtils'
 import { getShapeSvgElements } from '../utils/shapeDefinitions'
@@ -212,7 +212,12 @@ function AnnotationBody({ ann, width, pageWidth, opacity = 1 }) {
     case 'stamp':
       return (
         <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ opacity }} className="pointer-events-none">
-          {getShapeSvgElements(ann.shape, ann.strokeColor, ann.strokeWidth, ann.fillColor, ann.flipped)}
+          {/* getShapeSvgElements returns { el, props } descriptors, not React
+              elements — it is shared with the PDF exporter, which cannot use
+              JSX. Rendering the descriptors directly threw "Objects are not
+              valid as a React child" the instant a shape was drawn. */}
+          {getShapeSvgElements(ann.shape, ann.strokeColor, ann.strokeWidth, ann.fillColor, ann.flipped)
+            .map(({ el, props }, i) => createElement(el, { key: i, ...props }))}
         </svg>
       )
 

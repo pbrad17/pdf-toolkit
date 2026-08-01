@@ -10,6 +10,7 @@ import StatusBar from './ui/StatusBar'
 import ToolPanel from './ui/panelRegistry'
 import { hasPanel } from './ui/panelMap'
 import RestorePrompt from './ui/RestorePrompt'
+import { AppErrorBoundary } from './ui/ErrorBoundary'
 import { useSave } from './export/useSave'
 import { Button, Icon, IconButton } from './ui/primitives'
 
@@ -290,8 +291,10 @@ function Editor() {
 
 export default function App() {
   return (
-    <EditorProvider>
-      <Editor />
-    </EditorProvider>
+    <AppErrorBoundary>
+      <EditorProvider>
+        <Editor />
+      </EditorProvider>
+    </AppErrorBoundary>
   )
 }

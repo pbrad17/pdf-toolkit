@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { useEditor } from '../state/useEditor'
 import AnnotationItem from './AnnotationItem'
+import { AnnotationErrorBoundary } from '../ui/ErrorBoundary'
 
 /**
  * Take pointer capture, tolerating failure.
@@ -208,15 +209,19 @@ export default function AnnotationLayer({ page, width, height }) {
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
     >
+      {/* Each annotation is isolated: one that cannot draw shows a marker in
+          its place instead of taking the page — and the open document — down
+          with it. It stays in the state and still exports. */}
       {annotations.map(ann => (
-        <AnnotationItem
-          key={ann.id}
-          annotation={ann}
-          page={page}
-          pageWidth={width}
-          pageHeight={height}
-          selected={ann.id === selectedAnnotationId}
-        />
+        <AnnotationErrorBoundary key={ann.id} type={ann.type}>
+          <AnnotationItem
+            annotation={ann}
+            page={page}
+            pageWidth={width}
+            pageHeight={height}
+            selected={ann.id === selectedAnnotationId}
+          />
+        </AnnotationErrorBoundary>
       ))}
 
       {preview && <PlacementPreview preview={preview} tool={activeTool} options={toolOptions} width={width} height={height} />}
