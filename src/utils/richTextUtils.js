@@ -34,8 +34,9 @@ export function getSpans(ann) {
   if (ann.spans && ann.spans.length > 0) return ann.spans
 
   const text = ann.text || ''
-  const { baseFamily, bold, italic } = parseLegacyFont(ann.fontFamily)
-  // Legacy annotations: ignore baseFamily in span, it's on the annotation
+  // The base family stays on the annotation rather than the span, so only the
+  // style bits are lifted out of the legacy combined font name.
+  const { bold, italic } = parseLegacyFont(ann.fontFamily)
   return [{ text, bold, italic, underline: false }]
 }
 

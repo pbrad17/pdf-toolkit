@@ -7,6 +7,8 @@
   --color-section-bg: var(--theme-section-bg);
   --color-header-bg: var(--theme-header-bg);
   --color-accent: var(--theme-accent);
+  --color-accent-strong: var(--theme-accent-strong);
+  --color-on-accent: var(--theme-on-accent);
   --color-steel-blue: var(--theme-steel-blue);
   --color-sage: var(--theme-sage);
   --color-input-teal: var(--theme-input-teal);
@@ -15,41 +17,240 @@
   --color-border: var(--theme-border);
   --color-border-light: var(--theme-border-light);
   --color-text-primary: var(--theme-text-primary);
+  --color-text-muted: var(--theme-text-muted);
+  --color-text-subtle: var(--theme-text-subtle);
+  --color-accent-soft: var(--theme-accent-soft);
+  --color-accent-soft-border: var(--theme-accent-soft-border);
+  --color-accent-edge: var(--theme-accent-edge);
+  --color-info-soft: var(--theme-info-soft);
+  --color-warn-soft: var(--theme-warn-soft);
+  --color-danger-soft: var(--theme-danger-soft);
+  --color-focus: var(--theme-focus);
+  --color-scrim: var(--theme-scrim);
 }
+
+/* ---------------------------------------------------------------------------
+   Theme ramp.
+
+   Stays in the Planning Tool Belt blue/amber family so this app still reads as
+   a sibling of the others, but the steps are rebuilt for a document editor
+   rather than a dashboard.
+
+   Two things drive the values:
+
+   1. The page is the subject. Chrome sits darker and less saturated than
+      before so a white page is the brightest thing on screen and the eye goes
+      there first. The old ramp put the surround close in luminance to the
+      page, which made the document fight the UI for attention.
+   2. Surfaces need distinguishable elevation. The old steps were nearly
+      equal-luminance blues, so a raised panel over a rail read as one flat
+      mass. Each step now moves enough to be legible, while borders move the
+      other way — quieter, because with real elevation steps a hard border no
+      longer has to do the separating on its own.
+
+   Token names are unchanged; only values move, plus additions at the end. Every
+   component already references these, so renaming would be churn for nothing.
+   --------------------------------------------------------------------------- */
 
 :root,
 [data-theme="dark"] {
-  --theme-title-bg: #1A2E3D;
-  --theme-dark-bg: #1E3242;
-  --theme-alt-bg: #243A4A;
-  --theme-section-bg: #2A4F65;
-  --theme-header-bg: #345B72;
-  --theme-accent: #F5A623;
-  --theme-steel-blue: #5B8FA8;
-  --theme-sage: #9BB55E;
+  --theme-title-bg: #101D27;      /* app canvas — the document surround */
+  --theme-dark-bg: #16262F;       /* rails and panels */
+  --theme-alt-bg: #1D323E;        /* raised: ribbon, inputs, hover */
+  --theme-section-bg: #24404E;    /* header bar */
+  --theme-header-bg: #2C4D5E;     /* active / pressed */
+  /* On dark surfaces the brand amber is already far past AA, so text and fill
+     are the same colour here. They only need to diverge in the light theme. */
+  --theme-accent: #F9AC2A;        /* accent TEXT and icons */
+  --theme-accent-strong: #F9AC2A; /* accent FILLS: buttons, active states */
+  --theme-on-accent: #101D27;     /* foreground on an accent fill */
+  --theme-steel-blue: #74A6C0;    /* lifted for legibility on dark surfaces */
+  --theme-sage: #A3BE66;
   --theme-input-teal: #7EC8C8;
   --theme-positive: #9BB55E;
   --theme-negative: #E88D4F;
-  --theme-border: #3D6B8E;
-  --theme-border-light: #2A4F65;
-  --theme-text-primary: #FFFFFF;
+  --theme-border: #2B4553;        /* quieter: elevation now carries separation */
+  --theme-border-light: #213845;
+  --theme-text-primary: #F2F7FA;
+
+  /* Secondary text.
+
+     These exist because the shell had been expressing every non-primary string
+     as an alpha of the foreground — text-text-primary/40 through /60. On the
+     light theme those composite to 2.21:1, 3.19:1 and 4.30:1 against a white
+     panel, so panel labels, hints and page numbers were all failing AA as small
+     text. Two opaque steps replace the whole ramp of alphas; both are measured
+     against every surface they can land on, so neither can be made illegal by
+     putting it on the wrong background.
+       muted   labels, secondary body   7.90 / 6.77 / 5.57 / 4.58
+       subtle  hints, captions          6.49 / 5.56 / 4.57 / 3.77
+     (dark-bg / alt-bg / section-bg / header-bg)
+
+     Subtle does not clear 4.5 on header-bg, and cannot: to do so it would have
+     to be as light as muted, which leaves no hierarchy between them. Header-bg
+     is the active/pressed surface — hint text does not belong on it. That is a
+     rule in DESIGN.md, not an oversight. */
+  --theme-text-muted: #A8BCC7;
+  --theme-text-subtle: #94ABB8;
+
+  /* Tinted surfaces. Selected rows and Callouts were being drawn as accent/10,
+     accent/15, negative/15 and bare border-l-2 by different authors; one opaque
+     token per tone ends that. Body text on all four is text-primary — the tone
+     is carried by the border and icon, never by tinting the words. */
+  --theme-accent-soft: #3A2F16;
+  --theme-accent-soft-border: #A17F30;
+  /* Rim on an accent-strong fill. On dark the fill is already 4.70:1 against
+     the lightest surface it sits on, so the rim is the fill colour and does no
+     work; it exists so one Button implementation serves both themes. */
+  --theme-accent-edge: #F9AC2A;
+  --theme-info-soft: #1B303C;
+  --theme-warn-soft: #362B14;
+  --theme-danger-soft: #3A2119;
+
+  /* Focus. Steel blue rather than amber so the ring never reads as a selected
+     state, and never disappears against an accent fill. */
+  --theme-focus: #74A6C0;
+
+  /* Modal scrim.
+     The one value in the ramp that does NOT flip with the theme. A scrim's job
+     is to darken whatever is behind it; a light scrim on the light theme dims
+     nothing, so both themes use the same near-black. It is a token rather than
+     a `bg-black/70` in the component because that class was the last hardcoded
+     colour left in src/ui. */
+  --theme-scrim: rgb(9 16 21 / 0.66);
+
+  --theme-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35);
+  --theme-shadow-md: 0 2px 8px rgb(0 0 0 / 0.4);
+  --theme-shadow-lg: 0 8px 28px rgb(0 0 0 / 0.5);
+  /* Pages carry a rim as well as a drop shadow; on a dark surround a shadow
+     alone leaves a white page looking like it is floating with no edge. */
+  --theme-page-shadow: 0 2px 12px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(0 0 0 / 0.3);
 }
 
 [data-theme="light"] {
-  --theme-title-bg: #F0F4F8;
+  --theme-title-bg: #DFE7ED;      /* deliberately not white, so the page reads */
   --theme-dark-bg: #FFFFFF;
-  --theme-alt-bg: #E8EDF2;
-  --theme-section-bg: #D0DAE4;
-  --theme-header-bg: #B8C8D8;
-  --theme-accent: #D4890A;
-  --theme-steel-blue: #4A7A94;
-  --theme-sage: #6B8F2E;
-  --theme-input-teal: #A0D8D8;
-  --theme-positive: #6B8F2E;
-  --theme-negative: #C5652A;
-  --theme-border: #B0C4D8;
-  --theme-border-light: #D0DAE4;
-  --theme-text-primary: #1A2E3D;
+  --theme-alt-bg: #F0F4F7;
+  --theme-section-bg: #E4EBF1;
+  --theme-header-bg: #D2DEE7;
+  /* Amber on white is the one place this palette cannot have both things at
+     once: a vivid enough amber to read as the brand fails AA as small text.
+     Rather than dulling the brand everywhere, the two uses are split.
+     Measured against #FFFFFF / #F0F4F7 / #DFE7ED — every surface accent text
+     can land on — and against the foreground used on top of a fill.
+       accent        #8F5B00  5.73 / 5.18 / 4.58   (text, clears 4.5 on all)
+       accent-strong #D18A1E  2.85 on white         (fill only, never text)
+       on-accent     #101D27  6.00 on that fill     (text on the fill) */
+  --theme-accent: #8F5B00;
+  --theme-accent-strong: #D18A1E;
+  --theme-on-accent: #101D27;
+  --theme-steel-blue: #43738D;
+  --theme-sage: #5F8228;
+  --theme-input-teal: #7FC0C0;
+  /* Darkened from #5F8228 / #B4541F. Both were verified against white only, and
+     both are used as text on the raised surface too — where they landed at
+     4.46 and 4.49, under the bar by a hair. Same hues, one step down.
+       positive #506D1F  5.92 / 5.35 / 4.92 / 4.73
+       negative #A54B1A  5.80 / 5.24 / 4.82 / 4.64
+     (dark-bg / alt-bg / section-bg / title-bg) */
+  --theme-positive: #506D1F;
+  --theme-negative: #A54B1A;
+  --theme-border: #C6D4DF;
+  --theme-border-light: #E0E8EE;
+  --theme-text-primary: #12242F;
+
+  /* Same reasoning as the dark ramp; this is the theme the alphas were failing
+     on. Kept in the blue family rather than grey so secondary text still reads
+     as part of the palette.
+       muted   7.72 / 6.98 / 6.41 / 5.64 / 6.17
+       subtle  6.57 / 5.94 / 5.46 / 4.80 / 5.25
+     (dark-bg / alt-bg / section-bg / header-bg / title-bg — title-bg is
+     included because the viewer draws page numbers on the surround) */
+  --theme-text-muted: #3D5666;
+  --theme-text-subtle: #4A6070;
+
+  --theme-accent-soft: #FBF0DC;
+  /* One amber edge serves both jobs here. The plain accent-strong fill is only
+     2.85 against a white panel, so a filled button had no 3:1 boundary of its
+     own; this rim gives it one without touching the fill the brand depends on.
+       4.22 / 3.82 / 3.51 / 3.38 / 3.74
+     (dark-bg / alt-bg / section-bg / title-bg / accent-soft) */
+  --theme-accent-soft-border: #A96F17;
+  --theme-accent-edge: #A96F17;
+  --theme-info-soft: #EAF1F6;
+  --theme-warn-soft: #FDF4E4;
+  --theme-danger-soft: #FDF0EA;
+
+  --theme-focus: #43738D;
+
+  /* Same value as the dark theme, deliberately. See the note there. */
+  --theme-scrim: rgb(9 16 21 / 0.66);
+
+  --theme-shadow-sm: 0 1px 2px rgb(16 29 39 / 0.08);
+  --theme-shadow-md: 0 2px 8px rgb(16 29 39 / 0.10);
+  --theme-shadow-lg: 0 8px 28px rgb(16 29 39 / 0.14);
+  --theme-page-shadow: 0 1px 4px rgb(16 29 39 / 0.16), 0 0 0 1px rgb(16 29 39 / 0.08);
+}
+
+/* ---------------------------------------------------------------------------
+   Density.
+
+   Compact/pro: the app is used for real work on a desktop, so more document and
+   more tools on screen beats generous padding. Expressed as tokens rather than
+   scattered utility classes so the whole shell can be retuned in one place —
+   and so a comfortable mode stays a possibility rather than a rewrite.
+   --------------------------------------------------------------------------- */
+:root {
+  --ui-ribbon-h: 56px;
+  --ui-row-h: 28px;
+  --ui-rail-w: 240px;
+  --ui-panel-w: 264px;
+  --ui-radius: 8px;
+  --ui-radius-sm: 6px;
+  --ui-gap: 6px;
+
+  /* Added for the restyle. The shell's other bands were being expressed as
+     padding, so their heights drifted with whatever was inside them and no two
+     agents could agree on where the stage started. Each band is now a stated
+     height. */
+  --ui-header-h: 44px;
+  --ui-ribbon-tabs-h: 26px;   /* category strip above the tool row */
+  --ui-status-h: 30px;
+  --ui-rail-collapsed-w: 40px;
+  --ui-row-h-sm: 24px;        /* dense secondary controls */
+  --ui-panel-head-h: 32px;    /* rail panel title bar; taller than a row */
+
+  /* Focus ring. The offset is load-bearing, not decoration: it puts the ring on
+     the surface around the control rather than on the control's own fill, which
+     is the only way one ring colour can stay visible on an accent-filled
+     button as well as on a plain input. */
+  --ui-focus-w: 2px;
+  --ui-focus-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Focus.
+
+   Every interactive element in the build reached this point with
+   `focus:outline-none` and, at best, a 1px border recolour — which on a control
+   that already has a border is not a state change a keyboard user can see. This
+   is the floor.
+
+   Specificity is deliberate. `:root :is(...)` scores (0,2,1), which outranks
+   the `.focus\:outline-none:focus` utility at (0,2,0), so the ring survives
+   until those utilities are removed from the components. It is still beatable
+   by any component that genuinely needs a custom ring, so it is a floor and not
+   a lock.
+   --------------------------------------------------------------------------- */
+:root :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: var(--ui-focus-w) solid var(--theme-focus);
+  outline-offset: var(--ui-focus-offset);
+}
+
+/* Inside a scroll container an offset ring on the first or last row is clipped
+   by the container's overflow. Drawing it inward keeps it whole. */
+:root :is(a, button, input, select, textarea, [tabindex])[data-focus="inset"]:focus-visible {
+  outline-offset: calc(var(--ui-focus-w) * -1);
 }
 
 body {
@@ -57,6 +258,105 @@ body {
   background-color: var(--theme-title-bg);
   color: var(--theme-text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ---------------------------------------------------------------------------
+   pdf.js text layer.
+
+   Transparent, absolutely-positioned spans sit over the page canvas: the canvas
+   supplies the visible glyphs while selection, copy and search operate on real
+   text. Without this layer the document is only a picture.
+
+   These rules mirror pdfjs-dist/web/pdf_viewer.css rather than approximating
+   it. pdf.js writes inline styles that reference a specific set of custom
+   properties, and if any of them are undefined the declarations referencing
+   them are invalid at computed-value time — spans then fall back to their
+   natural size and drift badly out of register with the canvas. In particular
+   the span font-size and transform rules below are what size the glyphs at all;
+   omitting them leaves every span at the default 16px.
+   --------------------------------------------------------------------------- */
+.textLayer {
+  /* Contract expected by pdf.js's inline styles. --scale-factor is set by the
+     viewer before render; the rest are constants it assumes are present. */
+  --user-unit: 1;
+  --total-scale-factor: calc(var(--scale-factor) * var(--user-unit));
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 1;
+}
+
+.textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+/* The rules that actually scale each run to match the rendered glyphs. */
+.textLayer > :not(.markedContent),
+.textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+/* Structural markers pdf.js emits to keep copied text readable across line and
+   column breaks. They must not occupy layout space of their own. */
+.textLayer .markedContent {
+  display: contents;
+}
+
+.textLayer ::selection {
+  background: color-mix(in srgb, var(--theme-steel-blue) 55%, transparent);
+}
+
+/**
+ * While a placement tool is active the text layer must not accept pointer
+ * events.
+ *
+ * pdf.js gives .textLayer an explicit z-index and its spans cursor:text, so the
+ * layer sits above the annotation surface and every click meant for a tool was
+ * being swallowed by an invisible glyph box. That made text, shapes, highlight,
+ * draw, notes and redaction all appear broken on any page with text on it.
+ *
+ * Only inert while placing: with the select tool the text layer must stay live,
+ * because selecting and copying text is the reason it exists.
+ */
+[data-placing='true'] .textLayer,
+[data-placing='true'] .textLayer span {
+  pointer-events: none;
+  cursor: default;
+}
+
+.textLayer .endOfContent {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  z-index: -1;
+  cursor: default;
+  user-select: none;
+}
+
+.textLayer.selecting .endOfContent {
+  top: 0;
 }
 
 /* Range slider: larger thumb for easier dragging */

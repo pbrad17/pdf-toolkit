@@ -4,6 +4,65 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      Content-Security-Policy — the structural half of "your files never leave
+      this browser". Auditing the source proves the app does not exfiltrate
+      today; this makes the browser refuse to, whatever the code does tomorrow.
+
+      default-src is 'none' rather than 'self' so every fetch directive has to
+      be granted deliberately. Anything added later that needs a new source
+      fails loudly instead of quietly inheriting a permissive default.
+
+      The non-obvious grants, and why each is genuinely required:
+
+        script-src 'wasm-unsafe-eval'
+          The OCR engine is a WebAssembly build of Tesseract, and pdf.js
+          compiles WASM for JPEG 2000, JBIG2 and ICC handling. This keyword
+          permits WASM compilation only — it does not permit eval() — and any
+          network access that WASM attempts is still governed by connect-src.
+          Note that plain 'unsafe-eval' is deliberately absent: pdf.js probes
+          for it with a try/catch and falls back to an interpreter, so the only
+          cost is one console violation on the probe.
+
+        style-src 'unsafe-inline'
+          Not laziness. pdf.js positions every text-layer span with an inline
+          style attribute, and the UI sets user-chosen colours through React
+          style props. Without this the text layer loses register with the
+          canvas and selection breaks completely.
+
+        img-src data: blob:
+          Signatures and pasted images are data URLs; page thumbnails and
+          rendered previews are object URLs. Neither can reach off-origin.
+
+        worker-src blob:
+          Both workers in use — pdf.js and Tesseract — are same-origin scripts
+          and do not need this. It covers pdf.js's fallback of wrapping a
+          cross-origin worker in a blob URL, which would otherwise fail in a
+          way that is very hard to read. It grants nothing: a blob worker
+          inherits this policy, so it still cannot import or connect off-origin.
+
+        form-action 'none'
+          Every form in the app handles submit in JavaScript. A native
+          submission could only be a bug or an injection, and both should fail.
+
+      frame-ancestors is deliberately absent here: browsers ignore it when it
+      arrives via a meta tag and log a warning about it. It is set in
+      vercel.json alongside the headers a meta tag cannot express. Keep the two
+      policies in step — `node scripts/check-csp.mjs` compares them.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'none'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'"
+    />
+
+    <!--
+      The header carries one outbound link. Without this, following it would put
+      this page's URL in a Referer header on a third-party origin — the only
+      thing about a user's session that could otherwise escape.
+    -->
+    <meta name="referrer" content="no-referrer" />
+
     <title>PDF Toolkit</title>
   </head>
   <body>
