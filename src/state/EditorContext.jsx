@@ -96,7 +96,7 @@ export function EditorProvider({ children }) {
   /** Immutable uploaded files: [{ id, name, byteLength, pageCount, bytes }]. */
   const [sources, setSources] = useState([])
 
-  const [activeTool, setActiveTool] = useState('view')
+  const [activeTool, setActiveTool] = useState('select')
   /** { label, progress: 0..1 | null } while a long operation runs. */
   const [busy, setBusy] = useState(null)
   const [error, setError] = useState(null)

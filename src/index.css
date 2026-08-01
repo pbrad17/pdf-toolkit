@@ -328,6 +328,24 @@ body {
   background: color-mix(in srgb, var(--theme-steel-blue) 55%, transparent);
 }
 
+/**
+ * While a placement tool is active the text layer must not accept pointer
+ * events.
+ *
+ * pdf.js gives .textLayer an explicit z-index and its spans cursor:text, so the
+ * layer sits above the annotation surface and every click meant for a tool was
+ * being swallowed by an invisible glyph box. That made text, shapes, highlight,
+ * draw, notes and redaction all appear broken on any page with text on it.
+ *
+ * Only inert while placing: with the select tool the text layer must stay live,
+ * because selecting and copying text is the reason it exists.
+ */
+[data-placing='true'] .textLayer,
+[data-placing='true'] .textLayer span {
+  pointer-events: none;
+  cursor: default;
+}
+
 .textLayer .endOfContent {
   display: block;
   position: absolute;

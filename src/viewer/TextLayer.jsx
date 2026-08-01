@@ -65,7 +65,11 @@ export default function TextLayer({ page, scale, searchMatches = [], activeMatch
   }, [page, scale])
 
   return (
-    <div className="absolute inset-0 overflow-hidden">
+    // z-10 puts this above the canvas and, because an absolutely positioned
+    // element with a z-index forms its own stacking context, it also confines
+    // pdf.js's internal `.textLayer { z-index: 1 }` to this subtree — which is
+    // what lets the annotation layer above it actually receive clicks.
+    <div className="absolute inset-0 overflow-hidden z-10">
       <div ref={containerRef} className="textLayer absolute origin-top-left" />
       {/* Search highlights sit above the text so they read as marks on the page
           rather than as a text selection the user did not make.

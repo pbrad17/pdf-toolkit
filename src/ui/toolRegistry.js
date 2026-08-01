@@ -79,4 +79,19 @@ export const MODE_TOOLS = new Set(
   Object.values(TOOLS).filter(t => t.mode).map(t => t.id),
 )
 
+/**
+ * Tools that create something by clicking or dragging on the page.
+ *
+ * Distinct from MODE_TOOLS, which also covers `select` and `edittext` — those
+ * change what a click means without drawing anything. The viewer needs this
+ * narrower set to decide whether the text layer should be inert: while a
+ * placement tool is active, clicks belong to the annotation layer, and a text
+ * layer that still accepts pointer events silently eats every one of them.
+ */
+export const PLACEMENT_TOOLS = new Set([
+  'text', 'note', 'highlight', 'draw', 'stamp', 'signature', 'image', 'redact',
+])
+
+export const isPlacementTool = (toolId) => PLACEMENT_TOOLS.has(toolId)
+
 export const groupForTool = (toolId) => TOOLS[toolId]?.group ?? 'comment'

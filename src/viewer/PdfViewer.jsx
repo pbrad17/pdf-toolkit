@@ -7,6 +7,7 @@ import {
   computeLayout, computeFitScale, visibleRange, dominantPageIndex,
   layoutSize, PAGE_GAP,
 } from './geometry'
+import { isPlacementTool } from '../ui/toolRegistry'
 
 /**
  * The continuous document view.
@@ -21,7 +22,7 @@ import {
 export default function PdfViewer({ searchMatchesByPage, activeMatch, viewerRef }) {
   const {
     state, zoom, zoomMode, setZoomRaw, setZoom, setCurrentPageId,
-    selectedAnnotationId, setSelectedAnnotationId,
+    selectedAnnotationId, setSelectedAnnotationId, activeTool,
   } = useEditor()
 
   const scrollRef = useRef(null)
@@ -160,6 +161,10 @@ export default function PdfViewer({ searchMatchesByPage, activeMatch, viewerRef 
       onPointerDown={handleBackgroundPointerDown}
       className="flex-1 overflow-auto bg-title-bg"
       data-viewer-scroll
+      // Drives the CSS that makes the text layer inert while placing. Set on
+      // the scroll container rather than per page so it costs one attribute
+      // write when the tool changes, not one per mounted page.
+      data-placing={isPlacementTool(activeTool) ? 'true' : 'false'}
     >
       <div className="relative mx-auto" style={{ height: layout.totalHeight, width: 'min-content', minWidth: '100%' }}>
         {pages.map((page, i) => {

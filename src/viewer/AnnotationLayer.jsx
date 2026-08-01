@@ -189,10 +189,20 @@ export default function AnnotationLayer({ page, width, height }) {
   }, [activeTool, addAnnotation, page.id, toolOptions])
 
   return (
+    // Sits above the text layer (z-20) so placement clicks reach it rather than
+    // being eaten by a glyph box.
+    //
+    // The surface only captures pointer events while a placement tool is active.
+    // Otherwise it is transparent to them and individual annotations opt back in,
+    // so selecting and copying text still works with the select tool — a surface
+    // that captured everything would trade one broken interaction for another.
     <div
       ref={surfaceRef}
-      className="absolute inset-0"
-      style={{ cursor: isPlacing ? 'crosshair' : 'default', pointerEvents: 'auto' }}
+      className="absolute inset-0 z-20"
+      style={{
+        cursor: isPlacing ? 'crosshair' : 'default',
+        pointerEvents: isPlacing ? 'auto' : 'none',
+      }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

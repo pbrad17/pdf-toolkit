@@ -124,6 +124,11 @@ export default function AnnotationItem({ annotation: ann, page, pageWidth, pageH
   const commonStyle = {
     left, top, width,
     height: ann.type === 'note' ? undefined : height,
+    // The layer beneath is transparent to pointer events unless a placement
+    // tool is active, so each annotation opts itself back in. Without this an
+    // existing annotation could not be selected, moved or resized while the
+    // select tool was active — which is the only tool you would use to do it.
+    pointerEvents: 'auto',
   }
 
   return (
