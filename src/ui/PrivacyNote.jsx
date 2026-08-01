@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useEditor } from '../state/useEditor'
+import { Button, Panel, SectionHeading } from './primitives'
+import { Note } from './panels/panelParts'
 
 /**
  * What the app does and does not do with the user's files.
@@ -73,10 +75,16 @@ function formatBytes(bytes) {
   return mb < 1 ? `${Math.round(bytes / 1024)} KB` : `${mb.toFixed(1)} MB`
 }
 
+/**
+ * One statement and its heading. `level="sub"` because every one of these is a
+ * subsection of the single "Privacy" title the Panel already carries; styling
+ * them as top-level headings would make the panel a flat list of shouting
+ * labels with no structure, which is what the old build did.
+ */
 const Section = ({ title, children }) => (
   <section className="space-y-1.5">
-    <h4 className="text-[11px] uppercase tracking-wide text-text-primary/50">{title}</h4>
-    <div className="text-[11px] text-text-primary/70 leading-relaxed space-y-1.5">{children}</div>
+    <SectionHeading level="sub">{title}</SectionHeading>
+    <div className="space-y-1.5">{children}</div>
   </section>
 )
 
@@ -113,116 +121,115 @@ export default function PrivacyNote() {
     && stored.databases.length === 0
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Privacy</h3>
+    <Panel title="Privacy">
+      <Section title="Open right now">
+        <Note>
+          {sources.length === 0
+            ? 'No file is open.'
+            : `${sources.length} file${sources.length === 1 ? '' : 's'}, ${pageCount} page${pageCount === 1 ? '' : 's'}, held in this tab's memory.`}
+        </Note>
+      </Section>
 
-        <Section title="Open right now">
-          <p>
-            {sources.length === 0
-              ? 'No file is open.'
-              : `${sources.length} file${sources.length === 1 ? '' : 's'}, ${pageCount} page${pageCount === 1 ? '' : 's'}, held in this tab's memory.`}
-          </p>
+      <Section title="What happens to a file">
+        <Note>
+          The file is read by this tab and stays in it. Pages are rendered here,
+          edits are applied here, and the saved PDF is assembled here and handed
+          straight to the browser&apos;s download — it is not fetched from a server.
+        </Note>
+        <Note>
+          Whatever the app writes to your disk is listed below. That list is read
+          back from the browser rather than written here by hand, so it stays
+          accurate as features are added.
+        </Note>
+      </Section>
+
+      {stored?.sessionRecovery?.available && (
+        <Section title="Session recovery">
+          {/* The retention figure mirrors MAX_AGE_MS in state/persistence.js. */}
+          <Note>
+            So that a refresh or a crash does not lose your work, the open file&apos;s
+            bytes and your edits are written to IndexedDB on this device. That is
+            a copy of your document on your own disk — it is not sent anywhere,
+            and sessions are deleted automatically after a week.
+          </Note>
+          <Note className="tabular-nums">
+            Stored now: {stored.sessionRecovery.sessions}{' '}
+            session{stored.sessionRecovery.sessions === 1 ? '' : 's'},{' '}
+            {formatBytes(stored.sessionRecovery.bytes)}.
+          </Note>
         </Section>
+      )}
 
-        <Section title="What happens to a file">
-          <p>
-            The file is read by this tab and stays in it. Pages are rendered here,
-            edits are applied here, and the saved PDF is assembled here and handed
-            straight to the browser&apos;s download — it is not fetched from a server.
-          </p>
-          <p>
-            Whatever the app writes to your disk is listed below. That list is read
-            back from the browser rather than written here by hand, so it stays
-            accurate as features are added.
-          </p>
-        </Section>
+      <Section title="What is sent">
+        <Note>
+          Nothing leaves this origin. The app contains no analytics, no error
+          reporting, and no third-party scripts, fonts, or images.
+        </Note>
+        <Note>
+          The page is served with a Content-Security-Policy of{' '}
+          <code className="font-mono text-text-primary">connect-src &apos;self&apos;</code>, so the
+          browser refuses an outbound connection even if code attempted one. Open
+          your browser&apos;s network panel and check: every request goes to this
+          site.
+        </Note>
+        <Note>
+          The one outbound link is the Tool Belt link in the header. Following it
+          is an ordinary navigation and carries no document data; the page sends
+          no referrer.
+        </Note>
+      </Section>
 
-        {stored?.sessionRecovery?.available && (
-          <Section title="Session recovery">
-            {/* The retention figure mirrors MAX_AGE_MS in state/persistence.js. */}
-            <p>
-              So that a refresh or a crash does not lose your work, the open file&apos;s
-              bytes and your edits are written to IndexedDB on this device. That is
-              a copy of your document on your own disk — it is not sent anywhere,
-              and sessions are deleted automatically after a week.
-            </p>
-            <p>
-              Stored now: {stored.sessionRecovery.sessions}{' '}
-              session{stored.sessionRecovery.sessions === 1 ? '' : 's'},{' '}
-              {formatBytes(stored.sessionRecovery.bytes)}.
-            </p>
-          </Section>
+      <Section title="Stored on this device">
+        {stored === null ? (
+          <Note>Reading…</Note>
+        ) : nothingStored ? (
+          <Note>This site currently stores nothing on your device.</Note>
+        ) : (
+          // The key is the answer, so it is text-primary; the store it lives in
+          // qualifies it and takes the muted step.
+          <ul className="space-y-1 text-[11px] leading-snug text-text-primary">
+            {stored.local.map(key => (
+              <li key={`l-${key}`} className="break-all">
+                <span className="text-text-muted">Local storage</span> — <code className="font-mono">{key}</code>
+              </li>
+            ))}
+            {stored.session.map(key => (
+              <li key={`s-${key}`} className="break-all">
+                <span className="text-text-muted">Session storage</span> — <code className="font-mono">{key}</code>
+              </li>
+            ))}
+            {stored.databases === UNLISTABLE ? (
+              // Not a Note: only <li> may be a child of <ul>, so this carries
+              // the caption step directly rather than through the primitive.
+              <li className="text-text-subtle">
+                This browser will not list IndexedDB databases, so any are not shown
+                here. Erasing below still removes them, as does clearing site data.
+              </li>
+            ) : stored.databases.map(name => (
+              <li key={`d-${name}`} className="break-all">
+                <span className="text-text-muted">IndexedDB</span> — <code className="font-mono">{name}</code>
+              </li>
+            ))}
+          </ul>
         )}
+      </Section>
 
-        <Section title="What is sent">
-          <p>
-            Nothing leaves this origin. The app contains no analytics, no error
-            reporting, and no third-party scripts, fonts, or images.
-          </p>
-          <p>
-            The page is served with a Content-Security-Policy of{' '}
-            <code className="text-text-primary/90">connect-src &apos;self&apos;</code>, so the
-            browser refuses an outbound connection even if code attempted one. Open
-            your browser&apos;s network panel and check: every request goes to this
-            site.
-          </p>
-          <p>
-            The one outbound link is the Tool Belt link in the header. Following it
-            is an ordinary navigation and carries no document data; the page sends
-            no referrer.
-          </p>
-        </Section>
-
-        <Section title="Stored on this device">
-          {stored === null ? (
-            <p>Reading…</p>
-          ) : nothingStored ? (
-            <p>This site currently stores nothing on your device.</p>
-          ) : (
-            <ul className="space-y-1">
-              {stored.local.map(key => (
-                <li key={`l-${key}`}>
-                  <span className="text-text-primary/45">Local storage</span> — <code>{key}</code>
-                </li>
-              ))}
-              {stored.session.map(key => (
-                <li key={`s-${key}`}>
-                  <span className="text-text-primary/45">Session storage</span> — <code>{key}</code>
-                </li>
-              ))}
-              {stored.databases === UNLISTABLE ? (
-                <li className="text-text-primary/45">
-                  This browser will not list IndexedDB databases, so any are not shown
-                  here. Erasing below still removes them, as does clearing site data.
-                </li>
-              ) : stored.databases.map(name => (
-                <li key={`d-${name}`}>
-                  <span className="text-text-primary/45">IndexedDB</span> — <code>{name}</code>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Section>
-
-        <div className="space-y-2">
-          <button
-            onClick={erase}
-            className="w-full px-2 py-1.5 rounded-lg border border-border text-[11px] hover:border-negative hover:text-negative"
-          >
-            Erase stored data
-          </button>
-          <p className="text-[11px] text-text-primary/50 leading-snug" aria-live="polite">
-            {justErased
-              ? 'Erased. Your theme preference was part of it and has reset.'
-              : 'Removes everything listed above — saved sessions and your theme preference. The document open in this tab stays open; use Close, or reload the tab, to drop that too.'}
-          </p>
-          <p className="text-[11px] text-text-primary/40 leading-snug">
-            Clearing site data for this origin in your browser&apos;s settings does the
-            same thing and does not rely on this button working.
-          </p>
-        </div>
+      <div className="space-y-1.5 border-t border-border pt-3">
+        {/* Destroys every saved session on the device, so it is a danger Button
+            rather than the bordered link it used to be. */}
+        <Button variant="danger" full onClick={erase}>
+          Erase stored data
+        </Button>
+        <Note aria-live="polite">
+          {justErased
+            ? 'Erased. Your theme preference was part of it and has reset.'
+            : 'Removes everything listed above — saved sessions and your theme preference. The document open in this tab stays open; use Close, or reload the tab, to drop that too.'}
+        </Note>
+        <Note>
+          Clearing site data for this origin in your browser&apos;s settings does the
+          same thing and does not rely on this button working.
+        </Note>
       </div>
-    </div>
+    </Panel>
   )
 }

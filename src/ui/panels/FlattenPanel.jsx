@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useEditor } from '../../state/useEditor'
 import { scanAnnotations } from '../../export/documentInfo'
 import { plural } from './panelFormat'
+import { Callout, Field, Panel, Radio } from '../primitives'
+import { Note } from './panelParts'
 
 const MODES = [
   {
@@ -26,13 +28,6 @@ const MODES = [
     annotations: true,
   },
 ]
-
-const Field = ({ label, children }) => (
-  <div>
-    <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">{label}</span>
-    {children}
-  </div>
-)
 
 /**
  * Flattening.
@@ -96,79 +91,51 @@ export default function FlattenPanel() {
   }
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Flatten</h3>
+    <Panel title="Flatten">
+      <Note>
+        Applies to the whole document — the page selection does not affect it.
+        Flattening happens when you save, after every other change.
+      </Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Applies to the whole document — the page selection does not affect it.
-          Flattening happens when you save, after every other change.
-        </p>
+      <Field label="What to flatten">
+        <div className="space-y-1.5" role="radiogroup" aria-label="What to flatten">
+          {MODES.map(mode => (
+            <Radio
+              key={mode.id}
+              name="flatten-mode"
+              label={mode.label}
+              hint={`${mode.line} — ${describe(mode)}`}
+              checked={activeId === mode.id}
+              onChange={() => choose(mode.id)}
+            />
+          ))}
 
-        <Field label="What to flatten">
-          <div className="space-y-1.5" role="radiogroup" aria-label="What to flatten">
-            {MODES.map(mode => (
-              <label
-                key={mode.id}
-                className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${
-                  activeId === mode.id ? 'border-accent bg-accent/10' : 'border-border hover:border-accent/50'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="flatten-mode"
-                  checked={activeId === mode.id}
-                  onChange={() => choose(mode.id)}
-                  className="mt-0.5"
-                />
-                <span className="text-xs">
-                  {mode.label}
-                  <span className="block text-[11px] text-text-primary/50 leading-snug">{mode.line}</span>
-                  <span className="block text-[11px] text-text-primary/40 mt-0.5">{describe(mode)}</span>
-                </span>
-              </label>
-            ))}
+          <Radio
+            name="flatten-mode"
+            label="Leave it interactive"
+            hint="Fields stay fillable and comments stay editable."
+            checked={activeId === 'none'}
+            onChange={() => choose('none')}
+          />
+        </div>
+      </Field>
 
-            <label
-              className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${
-                activeId === 'none' ? 'border-accent bg-accent/10' : 'border-border hover:border-accent/50'
-              }`}
-            >
-              <input
-                type="radio"
-                name="flatten-mode"
-                checked={activeId === 'none'}
-                onChange={() => choose('none')}
-                className="mt-0.5"
-              />
-              <span className="text-xs">
-                Leave it interactive
-                <span className="block text-[11px] text-text-primary/50 leading-snug">
-                  Fields stay fillable and comments stay editable.
-                </span>
-              </span>
-            </label>
-          </div>
-        </Field>
+      {counts?.truncated && (
+        <Note>
+          Counted across the first {plural(counts.scanned, 'page')}. Flattening
+          still applies to the whole document.
+        </Note>
+      )}
 
-        {counts?.truncated && (
-          <p className="text-[11px] text-text-primary/40 leading-snug">
-            Counted across the first {plural(counts.scanned, 'page')}. Flattening
-            still applies to the whole document.
-          </p>
-        )}
+      <Note>
+        {placed > 0
+          ? `The ${plural(placed, 'comment')} you placed in this editor are drawn straight into the page when you save, whatever is chosen above. These options act on the interactive parts that came with the file you opened.`
+          : 'These options act on the interactive parts that came with the file you opened. Anything you add in this editor is drawn straight into the page when you save.'}
+      </Note>
 
-        <p className="text-[11px] text-text-primary/50 leading-snug border-t border-border pt-3">
-          {placed > 0
-            ? `The ${plural(placed, 'comment')} you placed in this editor are drawn straight into the page when you save, whatever is chosen above. These options act on the interactive parts that came with the file you opened.`
-            : 'These options act on the interactive parts that came with the file you opened. Anything you add in this editor is drawn straight into the page when you save.'}
-        </p>
-
-        <p className="text-[11px] text-text-primary/50 leading-snug">
-          Flattening cannot be undone in the saved file. It can be undone here, up
-          until you save.
-        </p>
-      </div>
-    </div>
+      <Callout tone="danger" title="Flattening cannot be undone in the saved file">
+        It can be undone here, up until you save.
+      </Callout>
+    </Panel>
   )
 }

@@ -68,12 +68,40 @@ export default function TextLayer({ page, scale, searchMatches = [], activeMatch
     <div className="absolute inset-0 overflow-hidden">
       <div ref={containerRef} className="textLayer absolute origin-top-left" />
       {/* Search highlights sit above the text so they read as marks on the page
-          rather than as a text selection the user did not make. */}
+          rather than as a text selection the user did not make.
+
+          accent-soft-border, not accent — the same call AnnotationItem and
+          AnnotationLayer make, and for the same reason: this is drawn on paper,
+          which is white in both themes, so it cannot use a token that flips.
+          `--theme-accent` is #F9AC2A on dark (1.92:1 on paper, invisible) and
+          #8F5B00 on light (a dark brown that at 60% blacks out the very words
+          the user is looking for). accent-soft-border is mid-amber at both ends
+          of the ramp, so the mark lands in the same place on paper either way.
+
+          Translucent on purpose, and the one place in this file an alpha is
+          right: the mark has to let the glyphs under it through.
+
+          The fill deliberately does not chase the 3:1 that non-text UI normally
+          owes its background — it cannot. A translucent amber only reaches 3:1
+          on white by becoming opaque enough to bury the word it is marking, and
+          the word is the thing the user came to read. The ACTIVE match — the one
+          the viewer has just scrolled to, and the only one the user is being
+          directed at — carries that job in its ring instead: accent-soft-border
+          is 4.22:1 on paper light and 3.75:1 dark, so the current match always
+          has a boundary that clears 3:1. Idle matches stay a wash, which is what
+          every PDF reader does, and they are never the sole signal: the search
+          rail lists every hit with its page and snippet, and shows "n of m".
+
+          Measured over white, both themes:
+            idle   25%  1.36:1 vs paper, page ink still 15.4:1 through it
+            active 55%  2.06:1 vs paper, page ink still 10.2:1 through it */}
       {searchMatches.map((m, i) => (
         <div
           key={i}
           className={`absolute pointer-events-none rounded-[1px] ${
-            i === activeMatchIndex ? 'bg-accent/60 ring-1 ring-accent' : 'bg-accent/25'
+            i === activeMatchIndex
+              ? 'bg-accent-soft-border/55 ring-1 ring-accent-soft-border'
+              : 'bg-accent-soft-border/25'
           }`}
           style={{ left: m.left, top: m.top, width: m.width, height: m.height }}
         />

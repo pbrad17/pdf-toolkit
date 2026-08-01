@@ -4,6 +4,10 @@ import { displaySize } from '../../state/documentModel'
 import { hasProperties, readSourceProperties, scanAnnotations } from '../../export/documentInfo'
 import { isImageOnly, measureTextCoverage } from '../../ocr/ocrEngine'
 import { formatBytes, plural } from './panelFormat'
+import {
+  Button, Callout, EmptyState, Field, Icon, Panel, SectionHeading, TextInput,
+} from '../primitives'
+import { Note, Summary, SummaryRow } from './panelParts'
 
 const EMPTY = { title: '', author: '', subject: '', keywords: '' }
 
@@ -26,6 +30,8 @@ const PAPER = [
 
 const PAPER_TOLERANCE_PT = 3
 
+const FILE_ICON = 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6'
+
 function paperName(width, height) {
   const near = (a, b) => Math.abs(a - b) <= PAPER_TOLERANCE_PT
   const match = PAPER.find(p => (
@@ -34,15 +40,6 @@ function paperName(width, height) {
   if (!match) return null
   return width > height ? `${match.name} landscape` : match.name
 }
-
-const inputClass = 'w-full px-2 py-1.5 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent'
-
-const Row = ({ label, children }) => (
-  <div className="flex justify-between gap-2 text-xs">
-    <span className="text-text-primary/60 shrink-0">{label}</span>
-    <span className="text-right break-words">{children}</span>
-  </div>
-)
 
 /**
  * Document properties.
@@ -163,127 +160,109 @@ export default function PropertiesPanel() {
   }
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Properties</h3>
+    <Panel title="Properties">
+      <Note>Written into the file when you save. Applies to the whole document.</Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Written into the file when you save. Applies to the whole document.
-        </p>
+      {FIELDS.map(({ key, label, hint }) => (
+        <Field key={key} label={label} htmlFor={`properties-${key}`} hint={hint}>
+          <TextInput
+            id={`properties-${key}`}
+            value={meta[key]}
+            spellCheck={false}
+            onFocus={() => onFocus(key)}
+            onChange={(e) => onChange(key, e.target.value)}
+            onBlur={() => onBlur(key, label)}
+          />
+        </Field>
+      ))}
 
-        {FIELDS.map(({ key, label, hint }) => (
-          <div key={key}>
-            <label
-              htmlFor={`properties-${key}`}
-              className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5"
-            >
-              {label}
-            </label>
-            <input
-              id={`properties-${key}`}
-              type="text"
-              value={meta[key]}
-              spellCheck={false}
-              onFocus={() => onFocus(key)}
-              onChange={(e) => onChange(key, e.target.value)}
-              onBlur={() => onBlur(key, label)}
-              className={inputClass}
-            />
-            {hint && <p className="text-[11px] text-text-primary/50 leading-snug mt-1">{hint}</p>}
-          </div>
-        ))}
+      {hasProperties(original) && (
+        <>
+          <Summary label="In the original file">
+            {original.title && <SummaryRow label="Title">{original.title}</SummaryRow>}
+            {original.author && <SummaryRow label="Author">{original.author}</SummaryRow>}
+            {original.subject && <SummaryRow label="Subject">{original.subject}</SummaryRow>}
+            {original.keywords && <SummaryRow label="Keywords">{original.keywords}</SummaryRow>}
+            <Button full size="sm" onClick={adoptOriginal}>Use these</Button>
+          </Summary>
 
-        {hasProperties(original) && (
-          <div className="rounded-lg bg-alt-bg border border-border p-2 space-y-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-text-primary/50">In the original file</p>
-            {original.title && <Row label="Title">{original.title}</Row>}
-            {original.author && <Row label="Author">{original.author}</Row>}
-            {original.subject && <Row label="Subject">{original.subject}</Row>}
-            {original.keywords && <Row label="Keywords">{original.keywords}</Row>}
-            <p className="text-[11px] text-text-primary/50 leading-snug">
-              Saving builds a new file, so these are not carried over on their own.
-            </p>
-            <button
-              type="button"
-              onClick={adoptOriginal}
-              className="w-full px-2 py-1.5 rounded-lg border border-border text-xs hover:border-accent"
-            >
-              Use these
-            </button>
-          </div>
+          <Callout tone="info" title="Saving builds a new file">
+            The original properties are not carried over on their own.
+          </Callout>
+        </>
+      )}
+
+      {state.doc.metadata && (
+        <Button variant="danger" full onClick={clearAll}>Clear properties</Button>
+      )}
+
+      <div className="space-y-1.5 border-t border-border pt-3">
+        <SectionHeading>This document</SectionHeading>
+
+        <SummaryRow label="Pages">{pages.length}</SummaryRow>
+        <SummaryRow label="Source files">
+          {sources.length === 1 ? sources[0].name : plural(sources.length, 'file')}
+        </SummaryRow>
+        <SummaryRow label="Size on disk">{formatBytes(sourceBytes)}</SummaryRow>
+        <SummaryRow label="Form fields">
+          {survey ? (survey.widgets === 0 ? 'None' : plural(survey.widgets, 'field')) : 'checking…'}
+        </SummaryRow>
+        <SummaryRow label="Comments">
+          {survey ? (survey.markup === 0 ? 'None' : plural(survey.markup, 'object')) : 'checking…'}
+        </SummaryRow>
+        <SummaryRow label="Scanned">{scannedNote()}</SummaryRow>
+
+        {survey?.truncated && (
+          <Note>
+            Field and comment counts cover the first {plural(survey.scanned, 'page')}.
+          </Note>
         )}
+      </div>
 
-        {state.doc.metadata && (
-          <button
-            type="button"
-            onClick={clearAll}
-            className="w-full px-2 py-1.5 rounded-lg border border-border text-xs text-negative hover:border-negative"
-          >
-            Clear properties
-          </button>
-        )}
+      <div className="space-y-1.5 border-t border-border pt-3">
+        <SectionHeading>Page size</SectionHeading>
 
-        <div className="pt-4 border-t border-border space-y-2">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-accent">This document</h4>
-
-          <Row label="Pages">{pages.length}</Row>
-          <Row label="Source files">
-            {sources.length === 1 ? sources[0].name : plural(sources.length, 'file')}
-          </Row>
-          <Row label="Size on disk">{formatBytes(sourceBytes)}</Row>
-          <Row label="Form fields">
-            {survey ? (survey.widgets === 0 ? 'None' : plural(survey.widgets, 'field')) : 'checking…'}
-          </Row>
-          <Row label="Comments">
-            {survey ? (survey.markup === 0 ? 'None' : plural(survey.markup, 'object')) : 'checking…'}
-          </Row>
-          <Row label="Scanned">{scannedNote()}</Row>
-
-          {survey?.truncated && (
-            <p className="text-[11px] text-text-primary/40 leading-snug">
-              Field and comment counts cover the first {plural(survey.scanned, 'page')}.
-            </p>
-          )}
-        </div>
-
-        <div className="pt-4 border-t border-border space-y-2">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-accent">Page size</h4>
-          {sizeGroups.length === 0 && (
-            <p className="text-[11px] text-text-primary/50">No pages open.</p>
-          )}
-          {sizeGroups.map(group => {
-            const name = paperName(group.width, group.height)
-            return (
-              <div key={`${group.width}x${group.height}`} className="text-xs">
-                <div className="flex justify-between gap-2">
-                  <span>{name || 'Custom'}</span>
-                  <span className="text-text-primary/60">{plural(group.count, 'page')}</span>
+        {sizeGroups.length === 0 ? (
+          <EmptyState
+            icon={<Icon d={FILE_ICON} size={18} />}
+            title="No pages open"
+            line="Open a PDF to see how its pages are sized."
+          />
+        ) : (
+          <>
+            {sizeGroups.map(group => (
+              <div key={`${group.width}x${group.height}`}>
+                {/* Name first, count second: here the size is the answer and the
+                    count qualifies it, which is the reverse of a SummaryRow. */}
+                <div className="flex items-baseline justify-between gap-2 text-xs">
+                  <span className="text-text-primary">
+                    {paperName(group.width, group.height) || 'Custom'}
+                  </span>
+                  <span className="shrink-0 text-text-muted">{plural(group.count, 'page')}</span>
                 </div>
-                <p className="text-[11px] text-text-primary/50">
+                <Note className="tabular-nums">
                   {Math.round(group.width)} × {Math.round(group.height)} pt
                   {' · '}
                   {(group.width / 72).toFixed(2)} × {(group.height / 72).toFixed(2)} in
-                </p>
+                </Note>
               </div>
-            )
-          })}
-          <p className="text-[11px] text-text-primary/40 leading-snug">
-            Measured as the page is displayed, after any cropping and rotation.
-          </p>
-        </div>
-
-        {(original?.creator || original?.producer) && (
-          <div className="pt-4 border-t border-border space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-accent">Made with</h4>
-            {original.creator && <Row label="Creator">{original.creator}</Row>}
-            {original.producer && <Row label="Producer">{original.producer}</Row>}
-            <p className="text-[11px] text-text-primary/40 leading-snug">
-              Replaced when you save — the saved file records that it was produced
-              here.
-            </p>
-          </div>
+            ))}
+            <Note>Measured as the page is displayed, after any cropping and rotation.</Note>
+          </>
         )}
       </div>
-    </div>
+
+      {(original?.creator || original?.producer) && (
+        <div className="space-y-1.5 border-t border-border pt-3">
+          <SectionHeading>Made with</SectionHeading>
+          {original.creator && <SummaryRow label="Creator">{original.creator}</SummaryRow>}
+          {original.producer && <SummaryRow label="Producer">{original.producer}</SummaryRow>}
+          <Note>
+            Replaced when you save — the saved file records that it was produced
+            here.
+          </Note>
+        </div>
+      )}
+    </Panel>
   )
 }

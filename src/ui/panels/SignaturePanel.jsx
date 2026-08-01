@@ -1,5 +1,10 @@
 import { useCallback, useRef, useState } from 'react'
 import { useEditor } from '../../state/useEditor'
+import {
+  Button, Callout, EmptyState, Field, Icon, IconButton, Panel, SectionHeading,
+  Slider, Swatches,
+} from '../primitives'
+import { ColorInput, Note, PlateButton } from './panelParts'
 
 /**
  * Backing-store size of the signing surface. Fixed rather than tied to the
@@ -14,12 +19,8 @@ const TRIM_PAD = 8
 
 const PEN_COLORS = ['#101D27', '#1B3A6B', '#7A1414']
 
-const Field = ({ label, children }) => (
-  <div>
-    <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">{label}</span>
-    {children}
-  </div>
-)
+const PEN_ICON = 'M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z'
+const CLOSE = 'M18 6L6 18M6 6l12 12'
 
 function drawStroke(ctx, stroke) {
   const { points, color, width } = stroke
@@ -225,150 +226,128 @@ export default function SignaturePanel() {
   }, [removeSignature, setToolOption, toolOptions.signature])
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Signature</h3>
-
-        <Field label="Pen">
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1.5">
-              {PEN_COLORS.map(c => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setPenColor(c)}
-                  style={{ background: c }}
-                  aria-label={`Pen colour ${c}`}
-                  aria-pressed={penColor === c}
-                  className={`w-6 h-6 rounded-md border transition-transform ${
-                    penColor === c ? 'border-accent scale-110' : 'border-border'
-                  }`}
-                />
-              ))}
-            </div>
-            <input
-              type="color"
-              value={penColor}
-              onChange={(e) => setPenColor(e.target.value)}
-              aria-label="Custom pen colour"
-              className="flex-1 h-6 rounded-md bg-alt-bg border border-border cursor-pointer"
-            />
-          </div>
-        </Field>
-
-        <Field label={`Thickness — ${penWidth}px`}>
-          <input
-            type="range"
-            min="1"
-            max="8"
-            value={penWidth}
-            onChange={(e) => setPenWidth(Number(e.target.value))}
-            // Field wraps a control group in the pen row above, so it renders a
-            // span rather than a label and cannot name its children.
-            aria-label="Pen thickness"
-            className="w-full"
+    <Panel title="Signature">
+      <Field label="Pen">
+        <div className="flex items-center gap-1.5">
+          <Swatches
+            colors={PEN_COLORS}
+            value={penColor}
+            onChange={setPenColor}
+            name="Pen colour"
           />
-        </Field>
+          <ColorInput
+            value={penColor}
+            onChange={(e) => setPenColor(e.target.value)}
+            aria-label="Custom pen colour"
+            className="flex-1"
+          />
+        </div>
+      </Field>
 
-        <canvas
-          ref={canvasRef}
-          width={CANVAS_W}
-          height={CANVAS_H}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={endStroke}
-          onPointerCancel={endStroke}
-          role="img"
-          aria-label="Signing area. Draw your signature with a mouse, finger or pen."
-          className="w-full rounded-lg border border-border bg-white cursor-crosshair touch-none"
+      <Field label="Thickness" htmlFor="signature-thickness" value={`${penWidth}px`}>
+        <Slider
+          id="signature-thickness" min="1" max="8"
+          value={penWidth}
+          onChange={(e) => setPenWidth(Number(e.target.value))}
         />
+      </Field>
 
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            onClick={undoStroke}
-            disabled={strokeCount === 0}
-            className="flex-1 px-2 py-1.5 rounded-lg border border-border text-xs hover:border-accent disabled:opacity-40"
-          >
-            Undo
-          </button>
-          <button
-            type="button"
-            onClick={clear}
-            disabled={strokeCount === 0}
-            className="flex-1 px-2 py-1.5 rounded-lg border border-border text-xs hover:border-accent disabled:opacity-40"
-          >
-            Clear
-          </button>
-        </div>
+      <canvas
+        ref={canvasRef}
+        width={CANVAS_W}
+        height={CANVAS_H}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endStroke}
+        onPointerCancel={endStroke}
+        role="img"
+        aria-label="Signing area. Draw your signature with a mouse, finger or pen."
+        className="w-full rounded-[var(--ui-radius)] border border-border bg-white cursor-crosshair touch-none"
+      />
 
-        <button
-          type="button"
-          onClick={save}
+      <div className="flex gap-1.5">
+        <Button
+          className="flex-1"
           disabled={strokeCount === 0}
-          className="w-full px-3 py-2 rounded-lg bg-accent-strong text-on-accent text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+          title={strokeCount === 0 ? 'Nothing drawn yet' : undefined}
+          onClick={undoStroke}
         >
-          Save signature
-        </button>
-
-        <p className="text-[11px] text-text-primary/50 leading-snug">
-          Saved with a transparent background and trimmed to the ink, so it sits
-          on the page without a white box around it.
-        </p>
-
-        <div className="pt-4 border-t border-border space-y-2">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-accent">
-            Saved {signatures.length > 0 && `(${signatures.length})`}
-          </h4>
-
-          {signatures.length === 0 ? (
-            <p className="text-[11px] text-text-primary/50 leading-snug">
-              Nothing saved yet. Draw above and save it to place it on pages.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {signatures.map((sig, i) => (
-                <div key={sig.id} className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => select(sig)}
-                    aria-label={`Use signature ${i + 1}`}
-                    aria-pressed={activeDataUrl === sig.dataUrl}
-                    className={`flex-1 min-w-0 p-2 rounded-lg border bg-white ${
-                      activeDataUrl === sig.dataUrl ? 'border-accent' : 'border-border hover:border-accent/50'
-                    }`}
-                  >
-                    <img src={sig.dataUrl} alt="" className="max-h-10 mx-auto object-contain" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => discard(sig)}
-                    aria-label={`Delete signature ${i + 1}`}
-                    className="p-1.5 rounded-md border border-border text-negative hover:border-negative shrink-0"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         strokeWidth="2.5" aria-hidden="true">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <p className="text-[11px] text-text-primary/50 leading-snug">
-            {activeDataUrl
-              ? 'Click a page to place the selected signature. Drag its corner to resize.'
-              : 'Select a signature, then click a page to place it.'}
-          </p>
-        </div>
-
-        <p className="text-[11px] text-text-primary/40 leading-snug border-t border-border pt-3">
-          Signatures stay in this tab and are never uploaded. Closing the tab
-          discards them.
-        </p>
+          Undo
+        </Button>
+        <Button
+          className="flex-1"
+          disabled={strokeCount === 0}
+          title={strokeCount === 0 ? 'Nothing drawn yet' : undefined}
+          onClick={clear}
+        >
+          Clear
+        </Button>
       </div>
-    </div>
+
+      <Button
+        variant="primary"
+        full
+        disabled={strokeCount === 0}
+        title={strokeCount === 0 ? 'Draw a signature first' : undefined}
+        onClick={save}
+      >
+        Save signature
+      </Button>
+
+      <Note>
+        Saved with a transparent background and trimmed to the ink, so it sits on
+        the page without a white box around it.
+      </Note>
+
+      <div className="space-y-1.5 border-t border-border pt-3">
+        <SectionHeading
+          action={signatures.length > 0 ? (
+            <span className="text-[11px] tabular-nums text-text-subtle">{signatures.length}</span>
+          ) : null}
+        >
+          Saved
+        </SectionHeading>
+
+        {signatures.length === 0 ? (
+          <EmptyState
+            icon={<Icon d={PEN_ICON} size={18} />}
+            title="Nothing saved yet"
+            line="Draw above and save it, then click a page to place it."
+          />
+        ) : (
+          <div className="space-y-1.5">
+            {signatures.map((sig, i) => (
+              <div key={sig.id} className="flex items-center gap-1.5">
+                <PlateButton
+                  className="flex-1 min-w-0"
+                  label={`Use signature ${i + 1}`}
+                  selected={activeDataUrl === sig.dataUrl}
+                  onClick={() => select(sig)}
+                >
+                  <img src={sig.dataUrl} alt="" className="max-h-12 mx-auto object-contain" />
+                </PlateButton>
+                <IconButton
+                  variant="danger"
+                  label={`Delete signature ${i + 1}`}
+                  onClick={() => discard(sig)}
+                >
+                  <Icon d={CLOSE} size={14} />
+                </IconButton>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <Note>
+          {activeDataUrl
+            ? 'Click a page to place the selected signature. Drag its corner to resize.'
+            : 'Select a signature, then click a page to place it.'}
+        </Note>
+      </div>
+
+      <Callout tone="info" title="Signatures stay in this tab">
+        They are never uploaded. Closing the tab discards them.
+      </Callout>
+    </Panel>
   )
 }

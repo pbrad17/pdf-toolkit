@@ -3,6 +3,8 @@ import { useEditor } from '../../state/useEditor'
 import { makeRaster, redactionMarksFor, renderPageImage, PDF_DPI } from '../../export/rasterize'
 import { formatPageRanges } from '../../utils/pageRanges'
 import { plural } from './panelFormat'
+import { Button, Callout, Field, Panel, SectionHeading, Select } from '../primitives'
+import { Note, Summary } from './panelParts'
 
 /**
  * JPEG rather than PNG. A greyscale page as PNG is several megabytes, and every
@@ -20,15 +22,6 @@ const SCALES = [1, 1.5, 2, 3]
  * "nothing converted" if this keyed on `source` instead.
  */
 const isGrey = (page) => page.raster?.grayscale === true
-
-const Field = ({ label, children }) => (
-  <div>
-    <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">{label}</span>
-    {children}
-  </div>
-)
-
-const inputClass = 'w-full px-2 py-1.5 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent'
 
 /**
  * Convert pages to greyscale.
@@ -147,102 +140,88 @@ export default function GrayscalePanel() {
   const restoreDropsCompression = targetPages.some(p => isGrey(p) && p.raster.source === 'compress')
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Greyscale</h3>
+    <Panel title="Greyscale">
+      <Note>
+        Converts colour to grey using the standard luma weighting, so colours of
+        equal brightness stay equally bright instead of flattening together.
+      </Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Converts colour to grey using the standard luma weighting, so colours of
-          equal brightness stay equally bright instead of flattening together.
-        </p>
+      <Summary
+        label={`Scope — ${scopeNote}`}
+        value={targetPages.length === 0
+          ? 'No pages'
+          : `Pages ${formatPageRanges(targetPages.map(p => pageNumbers.get(p.id)))}`}
+      >
+        {pending.length !== targetPages.length && (
+          <Note>{plural(targetPages.length - pending.length, 'page')} already greyscale</Note>
+        )}
+      </Summary>
 
-        <Field label={`Scope — ${scopeNote}`}>
-          <div className="rounded-lg bg-alt-bg border border-border p-2">
-            <p className="text-xs break-words">
-              {targetPages.length === 0
-                ? 'No pages'
-                : `Pages ${formatPageRanges(targetPages.map(p => pageNumbers.get(p.id)))}`}
-            </p>
-            {pending.length !== targetPages.length && (
-              <p className="text-[11px] text-text-primary/50 mt-1">
-                {plural(targetPages.length - pending.length, 'page')} already greyscale
-              </p>
-            )}
-          </div>
-        </Field>
-
-        <Field label="Quality">
-          <select
-            value={scale}
-            onChange={(e) => setScale(Number(e.target.value))}
-            // Field renders a span, not a label, because the same helper wraps
-            // control groups elsewhere. Every control it wraps therefore needs
-            // to name itself.
-            aria-label="Render quality"
-            className={inputClass}
-          >
-            {SCALES.map(s => (
-              <option key={s} value={s}>
-                {s}× — {Math.round(s * PDF_DPI)} dpi
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        <p className="text-[11px] text-text-primary/50 leading-snug">
-          Higher keeps small type crisp and makes the file larger. 2× matches
-          ordinary screen reading; 3× is worth it for printing.
-        </p>
-
-        <p className="text-[11px] text-negative leading-snug">
-          Converting redraws each page as an image. Selectable text, links and
-          form fields on those pages do not survive it — the page becomes a
-          picture. Run OCR afterwards if the result needs to be searchable.
-        </p>
-
-        <button
-          type="button"
-          onClick={run}
-          disabled={running || targetPages.length === 0}
-          className="w-full px-3 py-2 rounded-lg bg-accent-strong text-on-accent text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+      <Field
+        label="Quality"
+        htmlFor="grayscale-quality"
+        hint="Higher keeps small type crisp and makes the file larger. 2× matches ordinary screen reading; 3× is worth it for printing."
+      >
+        <Select
+          id="grayscale-quality"
+          value={scale}
+          onChange={(e) => setScale(Number(e.target.value))}
         >
-          {running ? 'Converting…' : `Convert ${plural(targetPages.length, 'page')}`}
-        </button>
+          {SCALES.map(s => (
+            <option key={s} value={s}>
+              {s}× — {Math.round(s * PDF_DPI)} dpi
+            </option>
+          ))}
+        </Select>
+      </Field>
 
-        {running && (
-          <button
-            type="button"
-            onClick={() => { cancelRef.current = true }}
-            className="w-full px-3 py-1.5 rounded-lg border border-border text-xs hover:border-accent"
+      <Callout tone="danger" title="Converting redraws each page as an image">
+        Selectable text, links and form fields on those pages do not survive it —
+        the page becomes a picture. Run OCR afterwards if the result needs to be
+        searchable.
+      </Callout>
+
+      <Button
+        variant="primary"
+        full
+        loading={running}
+        disabled={running || targetPages.length === 0}
+        title={targetPages.length === 0 ? 'No pages in scope' : undefined}
+        onClick={run}
+      >
+        Convert {plural(targetPages.length, 'page')}
+      </Button>
+
+      {running && (
+        <Button variant="secondary" full onClick={() => { cancelRef.current = true }}>
+          Stop after this page
+        </Button>
+      )}
+
+      {converted.length > 0 && (
+        <div className="space-y-1.5 border-t border-border pt-3">
+          <SectionHeading>Converted</SectionHeading>
+          <Note className="break-words">
+            Pages {formatPageRanges(converted.map(p => pageNumbers.get(p.id)))}
+          </Note>
+          <Button
+            variant="danger"
+            full
+            disabled={running || !restorable}
+            title={!restorable ? 'No greyscale pages in scope' : undefined}
+            onClick={restore}
           >
-            Stop after this page
-          </button>
-        )}
-
-        {converted.length > 0 && (
-          <div className="pt-4 border-t border-border space-y-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-accent">Converted</h4>
-            <p className="text-[11px] text-text-primary/50 break-words">
-              Pages {formatPageRanges(converted.map(p => pageNumbers.get(p.id)))}
-            </p>
-            <button
-              type="button"
-              onClick={restore}
-              disabled={running || !restorable}
-              className="w-full px-2 py-1.5 rounded-lg border border-border text-xs text-negative hover:border-negative disabled:opacity-40"
-            >
-              Restore colour on pages in scope
-            </button>
-            {restoreDropsCompression && (
-              <p className="text-[11px] text-text-primary/50 leading-snug">
-                Some of those pages were also compressed. Restoring colour puts
-                the original pages back, so their compression goes with it — run
-                Compress again afterwards.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+            Restore colour on pages in scope
+          </Button>
+          {restoreDropsCompression && (
+            <Note>
+              Some of those pages were also compressed. Restoring colour puts the
+              original pages back, so their compression goes with it — run
+              Compress again afterwards.
+            </Note>
+          )}
+        </div>
+      )}
+    </Panel>
   )
 }

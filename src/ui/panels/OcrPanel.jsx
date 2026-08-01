@@ -1,33 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useEditor } from '../../state/useEditor'
 import { measureTextCoverage, recognizePage, terminateOcr, isImageOnly } from '../../ocr/ocrEngine'
-
-const inputClass = 'w-full px-2 py-1.5 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent'
-
-const Field = ({ label, children }) => (
-  <div>
-    <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">{label}</span>
-    {children}
-  </div>
-)
-
-/** "1, 4, 7–9" — a page list the user can check at a glance in a narrow rail. */
-function formatPageRanges(numbers) {
-  if (numbers.length === 0) return 'none'
-  const sorted = [...numbers].sort((a, b) => a - b)
-  const parts = []
-  let start = sorted[0]
-  let prev = sorted[0]
-
-  for (let i = 1; i <= sorted.length; i++) {
-    const n = sorted[i]
-    if (n === prev + 1) { prev = n; continue }
-    parts.push(start === prev ? `${start}` : `${start}–${prev}`)
-    start = n
-    prev = n
-  }
-  return parts.join(', ')
-}
+import { formatPageRanges } from '../../utils/pageRanges'
+import { plural } from './panelFormat'
+import { Button, Callout, Checkbox, Field, Panel, Radio, SectionHeading } from '../primitives'
+import { Note, Summary } from './panelParts'
 
 /**
  * OCR panel.
@@ -156,131 +133,112 @@ export default function OcrPanel() {
   }, [commit])
 
   const scopeNote = selectedPageIds.size > 0
-    ? `${targetPages.length} selected page${targetPages.length === 1 ? '' : 's'}`
-    : `all ${targetPages.length} page${targetPages.length === 1 ? '' : 's'}`
+    ? `${plural(targetPages.length, 'selected page')}`
+    : `all ${plural(targetPages.length, 'page')}`
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">OCR</h3>
+    <Panel title="OCR">
+      <Note>
+        Reads text out of scanned pages and adds it as an invisible layer, so the
+        saved file is searchable and selectable but looks unchanged. Recognition
+        runs in this browser — the page images are never uploaded.
+      </Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Reads text out of scanned pages and adds it as an invisible layer, so the
-          saved file is searchable and selectable but looks unchanged. Recognition
-          runs in this browser — the page images are never uploaded.
-        </p>
-
-        <Field label={`Scope — ${scopeNote}`}>
-          <div className="space-y-1.5">
-            <label className="flex items-start gap-2 text-xs cursor-pointer">
-              <input
-                type="radio"
-                name="ocr-scope"
-                checked={scope === 'auto'}
-                onChange={() => setScope('auto')}
-                className="mt-0.5"
-              />
-              <span>
-                Pages that look scanned
-                <span className="block text-text-primary/50">
-                  {coverage === null ? 'checking…' : `${imageOnlyPages.length} found`}
-                </span>
-              </span>
-            </label>
-            <label className="flex items-start gap-2 text-xs cursor-pointer">
-              <input
-                type="radio"
-                name="ocr-scope"
-                checked={scope === 'all'}
-                onChange={() => setScope('all')}
-                className="mt-0.5"
-              />
-              <span>
-                Every page in scope
-                <span className="block text-text-primary/50">{targetPages.length} pages</span>
-              </span>
-            </label>
-          </div>
-        </Field>
-
-        {recognizedPages.length > 0 && (
-          <label className="flex items-center gap-2 text-xs cursor-pointer">
-            <input
-              type="checkbox"
-              checked={skipRecognized}
-              onChange={(e) => setSkipRecognized(e.target.checked)}
-            />
-            Skip pages already read
-          </label>
-        )}
-
-        <div className="rounded-lg bg-alt-bg border border-border p-2">
-          <p className="text-[11px] text-text-primary/50 uppercase tracking-wide mb-1">Will run on</p>
-          <p className="text-xs break-words">
-            {queue.length === 0
-              ? 'No pages'
-              : `${queue.length} page${queue.length === 1 ? '' : 's'} — ${formatPageRanges(queue.map(p => pageNumbers.get(p.id)))}`}
-          </p>
+      <Field label={`Scope — ${scopeNote}`}>
+        <div className="space-y-1.5" role="radiogroup" aria-label="Pages to read">
+          <Radio
+            name="ocr-scope"
+            label="Pages that look scanned"
+            hint={coverage === null ? 'checking…' : `${imageOnlyPages.length} found`}
+            checked={scope === 'auto'}
+            onChange={() => setScope('auto')}
+          />
+          <Radio
+            name="ocr-scope"
+            label="Every page in scope"
+            hint={plural(targetPages.length, 'page')}
+            checked={scope === 'all'}
+            onChange={() => setScope('all')}
+          />
         </div>
+      </Field>
 
-        <button
-          onClick={run}
-          disabled={running || queue.length === 0}
-          className="w-full px-3 py-2 rounded-lg bg-accent-strong text-on-accent text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+      {recognizedPages.length > 0 && (
+        <Checkbox
+          label="Skip pages already read"
+          checked={skipRecognized}
+          onChange={(e) => setSkipRecognized(e.target.checked)}
+        />
+      )}
+
+      <Summary
+        label="Will run on"
+        value={queue.length === 0
+          ? 'No pages'
+          : `${plural(queue.length, 'page')} — ${formatPageRanges(queue.map(p => pageNumbers.get(p.id)))}`}
+      />
+
+      <Callout tone="warning" title="The text is written into the file when you save">
+        It is not searchable in this viewer yet — the page images have no text of
+        their own.
+      </Callout>
+
+      <Button
+        variant="primary"
+        full
+        loading={running}
+        disabled={running || queue.length === 0}
+        title={queue.length === 0 ? 'No pages to read' : undefined}
+        onClick={run}
+      >
+        Read text
+      </Button>
+
+      {running && (
+        <Button variant="secondary" full onClick={() => { cancelRef.current = true }}>
+          Stop after this page
+        </Button>
+      )}
+
+      <Note>
+        The first page is slow: the recognition engine and the English model load
+        once, then stay ready for the rest of the run.
+      </Note>
+
+      {recognizedPages.length > 0 && (
+        <div className="space-y-1.5 border-t border-border pt-3">
+          <SectionHeading
+            action={(
+              <Button variant="danger" size="sm" onClick={clearResults}>Remove</Button>
+            )}
+          >
+            Results
+          </SectionHeading>
+          <p className="text-xs text-text-primary">
+            {recognizedWords.toLocaleString()} word{recognizedWords === 1 ? '' : 's'} on{' '}
+            {plural(recognizedPages.length, 'page')}
+          </p>
+          <Note className="break-words">
+            Pages {formatPageRanges(recognizedPages.map(p => pageNumbers.get(p.id)))}
+          </Note>
+        </div>
+      )}
+
+      <div className="space-y-1.5 border-t border-border pt-3">
+        <SectionHeading>Engine</SectionHeading>
+        <Button
+          full
+          disabled={running}
+          title={running ? 'Wait for the current run to finish' : undefined}
+          onClick={() => { terminateOcr() }}
         >
-          {running ? 'Reading…' : 'Read text'}
-        </button>
-
-        {running && (
-          <button
-            onClick={() => { cancelRef.current = true }}
-            className="w-full px-3 py-1.5 rounded-lg border border-border text-xs hover:border-accent"
-          >
-            Stop after this page
-          </button>
-        )}
-
-        <p className="text-[11px] text-text-primary/50 leading-snug">
-          The first page is slow: the recognition engine and the English model
-          load once, then stay ready for the rest of the run.
-        </p>
-
-        {recognizedPages.length > 0 && (
-          <div className="pt-4 border-t border-border space-y-2">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Results</h3>
-              <button onClick={clearResults} className="text-[11px] text-negative hover:underline">
-                Remove
-              </button>
-            </div>
-            <p className="text-xs text-text-primary/70">
-              {recognizedWords.toLocaleString()} word{recognizedWords === 1 ? '' : 's'} on{' '}
-              {recognizedPages.length} page{recognizedPages.length === 1 ? '' : 's'}
-            </p>
-            <p className="text-[11px] text-text-primary/50 break-words">
-              Pages {formatPageRanges(recognizedPages.map(p => pageNumbers.get(p.id)))}
-            </p>
-            <p className="text-[11px] text-text-primary/50 leading-snug">
-              The text is written into the file when you save. It is not searchable
-              in this viewer yet — the page images have no text of their own.
-            </p>
-          </div>
-        )}
-
-        <div className="pt-4 border-t border-border">
-          <button
-            onClick={() => { terminateOcr() }}
-            disabled={running}
-            className={`${inputClass} text-left text-[11px] text-text-primary/60 disabled:opacity-40`}
-          >
-            Release engine memory
-          </button>
-          <p className="text-[11px] text-text-primary/40 leading-snug mt-1.5">
-            The engine holds a few hundred megabytes while loaded. Releasing it is
-            safe; the next run reloads it.
-          </p>
-        </div>
+          Release engine memory
+        </Button>
+        <Note>
+          The engine holds a few hundred megabytes while loaded. Releasing it is
+          safe; the next run reloads it.
+        </Note>
       </div>
-    </div>
+    </Panel>
   )
 }

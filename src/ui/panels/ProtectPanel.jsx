@@ -4,17 +4,17 @@ import {
   MAX_PASSWORD_LENGTH, PERMISSION_FIELDS, createEncryption, defaultPermissions,
   isProtected, looksEncrypted, passwordError, permissionsAreEnforceable,
 } from '../../export/encryption'
-
-const inputClass = 'w-full px-2 py-1.5 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent'
-const captionClass = 'text-[11px] text-text-primary/50 leading-snug'
+import {
+  Button, Callout, Checkbox, Field, Icon, IconButton, Panel, SectionHeading, TextInput,
+} from '../primitives'
+import { Note, Problem } from './panelParts'
 
 const EyeIcon = ({ off }) => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <Icon size={14}>
     <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
     <circle cx="12" cy="12" r="3" />
     {off && <path d="M3 3l18 18" />}
-  </svg>
+  </Icon>
 )
 
 /**
@@ -85,11 +85,8 @@ export default function ProtectPanel() {
   const passwordField = (field, id, title, label, help) => {
     const problem = passwordError(settings[field])
     return (
-      <div>
-        <label htmlFor={id} className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">
-          {title}
-        </label>
-        <input
+      <Field label={title} htmlFor={id} error={problem}>
+        <TextInput
           id={id}
           type={revealed ? 'text' : 'password'}
           value={settings[field]}
@@ -101,99 +98,107 @@ export default function ProtectPanel() {
           onFocus={() => onFocus(field)}
           onChange={(e) => onChange(field, e.target.value)}
           onBlur={() => onBlur(field, label)}
-          className={inputClass}
         />
-        <p id={`${id}-help`} className={`${captionClass} mt-1`}>{help}</p>
-        {problem && <p role="alert" className="text-[11px] text-negative leading-snug mt-1">{problem}</p>}
-      </div>
+        {/* Rendered here rather than through Field's own `hint` slot so it can
+            carry the id that aria-describedby points at, and so it stays on
+            screen while an error is showing. */}
+        <p id={`${id}-help`} className="mt-1 text-[11px] leading-snug text-text-subtle">
+          {help}
+        </p>
+      </Field>
     )
   }
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Password</h3>
+    <Panel title="Password">
+      <Note>
+        Applies to the whole document — the page selection does not affect it.
+        Protection is written when you save, using AES-128 encryption.
+      </Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Applies to the whole document — the page selection does not affect it.
-          Protection is written when you save, using AES-128 encryption.
-        </p>
+      {openedProtected && !active && (
+        <Problem role="status">
+          A file you opened was password protected. Saving now produces an
+          unprotected copy. Set a password below to keep it locked.
+        </Problem>
+      )}
 
-        {openedProtected && !active && (
-          <p role="status" className="text-[11px] text-negative leading-snug">
-            A file you opened was password protected. Saving now produces an
-            unprotected copy. Set a password below to keep it locked.
-          </p>
-        )}
-
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] uppercase tracking-wide text-text-primary/50">Passwords</span>
-          <button
-            type="button"
+      <SectionHeading
+        action={(
+          <IconButton
+            size="sm"
+            label={revealed ? 'Hide passwords' : 'Show passwords'}
+            active={revealed}
             onClick={() => setRevealed(r => !r)}
-            aria-label={revealed ? 'Hide passwords' : 'Show passwords'}
-            aria-pressed={revealed}
-            className="p-1 rounded-md border border-border text-text-primary/70 hover:border-accent"
           >
             <EyeIcon off={revealed} />
-          </button>
-        </div>
-
-        {passwordField(
-          'userPassword', 'protect-user-password', 'To open',
-          'Set open password',
-          'Required to open the file. Leave empty to let anyone open it.',
+          </IconButton>
         )}
+      >
+        Passwords
+      </SectionHeading>
 
-        {passwordField(
-          'ownerPassword', 'protect-owner-password', 'To change permissions',
-          'Set permissions password',
-          'Required to lift the restrictions below.',
-        )}
+      {passwordField(
+        'userPassword', 'protect-user-password', 'To open',
+        'Set open password',
+        'Required to open the file. Leave empty to let anyone open it.',
+      )}
 
-        <fieldset disabled={!active} className="space-y-2 disabled:opacity-50">
-          <legend className="text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">Allow</legend>
-          {PERMISSION_FIELDS.map(({ key, label }) => (
-            <label key={key} className={`flex items-center gap-2 text-xs ${active ? 'cursor-pointer' : ''}`}>
-              <input
-                type="checkbox"
-                checked={permissions[key]}
-                onChange={(e) => patch(
-                  { permissions: { ...permissions, [key]: e.target.checked } },
-                  `${e.target.checked ? 'Allow' : 'Restrict'} ${label.toLowerCase()}`,
-                )}
-              />
-              {label}
-            </label>
-          ))}
-        </fieldset>
+      {passwordField(
+        'ownerPassword', 'protect-owner-password', 'To change permissions',
+        'Set permissions password',
+        'Required to lift the restrictions below.',
+      )}
 
-        {/* Worth stating plainly rather than letting someone read a checkbox as a lock. */}
-        <p className={captionClass}>
-          {!active
-            ? 'Set a password to restrict what readers can do.'
-            : enforceable
-              ? 'Restrictions are honoured by readers that follow the PDF specification. They are not encryption, and software that ignores them can still print or copy.'
-              : 'These restrictions can be lifted by anyone who knows the password above. Set a different permissions password to make them mean something.'}
-        </p>
+      <fieldset disabled={!active} className="space-y-1.5 disabled:opacity-45">
+        <legend className="mb-1 text-[11px] font-medium uppercase tracking-wider text-text-muted">
+          Allow
+        </legend>
+        {PERMISSION_FIELDS.map(({ key, label }) => (
+          <Checkbox
+            key={key}
+            label={label}
+            checked={permissions[key]}
+            onChange={(e) => patch(
+              { permissions: { ...permissions, [key]: e.target.checked } },
+              `${e.target.checked ? 'Allow' : 'Restrict'} ${label.toLowerCase()}`,
+            )}
+          />
+        ))}
+      </fieldset>
 
-        {active && (
-          <button
-            type="button"
-            onClick={() => commit('Remove password protection', draft => { draft.doc.encryption = null })}
-            className="w-full px-2 py-1.5 rounded-lg border border-border text-xs text-negative hover:border-negative"
-          >
-            Remove protection
-          </button>
-        )}
+      {/* Worth stating plainly rather than letting someone read a checkbox as a
+          lock. Before the action, and in the one treatment every other honest
+          limitation in this app uses. */}
+      {!active ? (
+        <Note>Set a password to restrict what readers can do.</Note>
+      ) : enforceable ? (
+        <Callout tone="warning" title="Restrictions are not encryption">
+          They are honoured by readers that follow the PDF specification.
+          Software that ignores them can still print or copy.
+        </Callout>
+      ) : (
+        <Callout tone="warning" title="These restrictions can be lifted by anyone who knows the password above">
+          Set a different permissions password to make them mean something.
+        </Callout>
+      )}
 
-        <p className={`${captionClass} border-t border-border pt-3`}>
-          Passwords are limited to {MAX_PASSWORD_LENGTH} characters and to Latin-1
-          text; the PDF standard security handler ignores anything past that.
-          Nothing is sent anywhere — encryption happens in this browser, and a
-          lost password cannot be recovered.
-        </p>
-      </div>
-    </div>
+      {active && (
+        <Button
+          variant="danger"
+          full
+          onClick={() => commit('Remove password protection', draft => { draft.doc.encryption = null })}
+        >
+          Remove protection
+        </Button>
+      )}
+
+      <Note className="border-t border-border pt-3">
+        Passwords are limited to {MAX_PASSWORD_LENGTH} characters and to Latin-1
+        text; the PDF standard security handler ignores anything past that.
+        Nothing is sent anywhere — encryption happens in this browser, and a lost
+        password cannot be recovered.
+      </Note>
+    </Panel>
   )
 }

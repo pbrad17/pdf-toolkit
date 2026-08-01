@@ -5,29 +5,13 @@ import { MAX_IMAGE_BYTES, WATERMARK_POSITIONS, createWatermark } from '../../exp
 import { formatPageRanges } from '../../utils/pageRanges'
 import { plural } from './panelFormat'
 import WatermarkOverlay from '../../viewer/overlays/WatermarkOverlay'
+import { Button, Callout, Field, Panel, Radio, Select, Slider, TextInput } from '../primitives'
+import { ChoiceButton, ColorInput, Note, Plate, Problem, Summary } from './panelParts'
 
 const PRESETS = ['DRAFT', 'CONFIDENTIAL', 'COPY', 'SAMPLE', 'DO NOT COPY']
 
 /** Width of the page preview, in CSS pixels, inside the 264px rail. */
 const PREVIEW_WIDTH = 216
-
-const inputClass = 'w-full px-2 py-1.5 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent'
-const captionClass = 'text-[11px] text-text-primary/50 leading-snug'
-
-const Field = ({ label, children }) => (
-  <label className="block">
-    <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">{label}</span>
-    {children}
-  </label>
-)
-
-/** Same shape as Field, for a set of buttons that no single label can own. */
-const Group = ({ label, children }) => (
-  <div>
-    <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">{label}</span>
-    {children}
-  </div>
-)
 
 function readAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -153,9 +137,11 @@ export default function WatermarkPanel() {
     if (opened) endInteraction(opened.existed ? opened.label : 'Add watermark')
   }, [endInteraction])
 
+  const sliderId = (field) => `watermark-${field}`
+
   const slider = (field, label, props) => (
-    <input
-      type="range"
+    <Slider
+      id={sliderId(field)}
       value={settings[field]}
       onChange={(e) => liveEdit(field, Number(e.target.value), label)}
       // Closed on pointer-up and key-up as well as blur. A drag that ends with
@@ -165,7 +151,6 @@ export default function WatermarkPanel() {
       onPointerUp={() => endEdit(field)}
       onKeyUp={() => endEdit(field)}
       onBlur={() => endEdit(field)}
-      className="w-full"
       {...props}
     />
   )
@@ -216,257 +201,226 @@ export default function WatermarkPanel() {
   const undrawable = !isImage
     && [...String(settings.text ?? '')].some(ch => ch.codePointAt(0) > 0xFF)
 
+  // Both are live validation of what has just been typed, so they go in the
+  // field's own error slot rather than becoming a second warning box competing
+  // with the standing one at the foot of the panel.
+  const textProblem = !hasText
+    ? 'Empty text draws nothing. Type something or pick a preset.'
+    : undrawable
+      ? 'The built-in fonts cover Latin characters only. Anything outside that is dropped when the file is saved.'
+      : null
+
   const previewPage = scopedPages[0] || state.pages[0] || null
   const previewSize = previewPage ? displaySize(previewPage) : null
   const previewScale = previewSize ? PREVIEW_WIDTH / previewSize.width : 1
   const previewHeight = previewSize ? Math.round(previewSize.height * previewScale) : 0
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Watermark</h3>
+    <Panel title="Watermark">
+      <Note>
+        Drawn into the page when you save, under nothing and over everything —
+        it is part of the file, not an annotation a reader can select and delete.
+      </Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Drawn into the page when you save, under nothing and over everything —
-          it is part of the file, not an annotation a reader can select and delete.
-        </p>
-
-        <Group label="Type">
-          <div className="flex gap-1">
-            {[{ id: 'text', label: 'Text' }, { id: 'image', label: 'Image' }].map(opt => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => patch({ kind: opt.id }, `Watermark from ${opt.label.toLowerCase()}`)}
-                aria-pressed={settings.kind === opt.id}
-                className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${
-                  settings.kind === opt.id
-                    ? 'bg-accent-strong text-on-accent border-accent-strong'
-                    : 'border-border hover:border-accent'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </Group>
-
-        {!isImage && (
-          <>
-            <Group label="Preset">
-              <div className="grid grid-cols-2 gap-1">
-                {PRESETS.map(preset => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => patch({ kind: 'text', text: preset }, `Watermark “${preset}”`)}
-                    aria-pressed={settings.text === preset}
-                    className={`px-1 py-1.5 text-[10px] rounded-md border truncate ${
-                      settings.text === preset
-                        ? 'border-accent bg-accent/10 text-accent'
-                        : 'border-border text-text-primary/70 hover:border-accent/50'
-                    }`}
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-            </Group>
-
-            <Field label="Text">
-              <input
-                type="text"
-                value={settings.text ?? ''}
-                placeholder="Anything you like"
-                onChange={(e) => liveEdit('text', e.target.value, 'Change watermark text')}
-                onBlur={() => endEdit('text')}
-                className={inputClass}
-              />
-            </Field>
-
-            {!hasText && (
-              <p role="status" className="text-[11px] text-negative leading-snug">
-                Empty text draws nothing. Type something or pick a preset.
-              </p>
-            )}
-
-            {undrawable && (
-              <p role="status" className="text-[11px] text-negative leading-snug">
-                The built-in fonts cover Latin characters only. Anything outside that
-                is dropped when the file is saved.
-              </p>
-            )}
-
-            <Field label="Colour">
-              <input
-                type="color"
-                value={settings.color}
-                onChange={(e) => liveEdit('color', e.target.value, 'Change watermark colour')}
-                onBlur={() => endEdit('color')}
-                className="w-full h-8 rounded-lg bg-alt-bg border border-border cursor-pointer"
-              />
-            </Field>
-
-            <Field label={`Size — ${Math.round(settings.fontSize)}pt`}>
-              {slider('fontSize', 'Change watermark size', { min: 8, max: 200, step: 1 })}
-            </Field>
-          </>
-        )}
-
-        {isImage && (
-          <>
-            <Group label="Image">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/png,image/jpeg"
-                className="hidden"
-                onChange={pickImage}
-              />
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                className="w-full py-1.5 text-xs rounded-lg border border-border hover:border-accent transition-colors"
-              >
-                {settings.dataUrl ? 'Choose a different image…' : 'Choose an image…'}
-              </button>
-            </Group>
-
-            {settings.dataUrl ? (
-              <div className="p-2 rounded-lg border border-border bg-white">
-                <img
-                  src={settings.dataUrl}
-                  alt={settings.imageName ? `Watermark image ${settings.imageName}` : 'Watermark image'}
-                  className="h-14 mx-auto object-contain"
-                />
-              </div>
-            ) : (
-              <>
-                <p role="status" className="text-[11px] text-negative leading-snug">
-                  No image chosen, so nothing will be drawn yet.
-                </p>
-                <p className={captionClass}>PNG or JPEG, up to {MAX_IMAGE_BYTES / 1024 / 1024} MB.</p>
-              </>
-            )}
-
-            {settings.imageName && (
-              <p className={`${captionClass} truncate`}>{settings.imageName}</p>
-            )}
-
-            <Field label={`Size — ${Math.round(settings.imageScale * 100)}% of the page`}>
-              {slider('imageScale', 'Change watermark size', { min: 0.05, max: 1, step: 0.05 })}
-            </Field>
-          </>
-        )}
-
-        <Field label="Position">
-          <select
-            value={settings.position}
-            onChange={(e) => patch({ position: e.target.value }, 'Move watermark')}
-            className={inputClass}
-          >
-            {WATERMARK_POSITIONS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-          </select>
-        </Field>
-
-        <Field label={`Angle — ${Math.round(settings.rotation)}°`}>
-          {slider('rotation', 'Rotate watermark', { min: -90, max: 90, step: 1 })}
-        </Field>
-
-        <Field label={`Opacity — ${Math.round(settings.opacity * 100)}%`}>
-          {slider('opacity', 'Change watermark opacity', { min: 0.05, max: 1, step: 0.05 })}
-        </Field>
-
-        <Group label="Pages">
-          <div className="space-y-1.5">
-            <label className="flex items-start gap-2 text-xs cursor-pointer">
-              <input
-                type="radio"
-                name="watermark-scope"
-                checked={!scopeIsSelection}
-                onChange={() => patch({ scope: 'all' }, 'Watermark every page')}
-                className="mt-0.5"
-              />
-              <span>
-                Every page
-                <span className="block text-text-primary/50">{plural(state.pages.length, 'page')}</span>
-              </span>
-            </label>
-            <label className={`flex items-start gap-2 text-xs ${selectedPageIds.size > 0 ? 'cursor-pointer' : 'opacity-50'}`}>
-              <input
-                type="radio"
-                name="watermark-scope"
-                checked={scopeIsSelection}
-                disabled={selectedPageIds.size === 0 && !scopeIsSelection}
-                onChange={() => patch({ scope: [...targetPageIds] }, 'Limit watermark to chosen pages')}
-                className="mt-0.5"
-              />
-              <span>
-                Chosen pages
-                <span className="block text-text-primary/50">
-                  {selectedPageIds.size === 0 && !scopeIsSelection
-                    ? 'select pages first'
-                    : plural(scopedPages.length, 'page')}
-                </span>
-              </span>
-            </label>
-          </div>
-        </Group>
-
-        <div className="rounded-lg bg-alt-bg border border-border p-2">
-          <p className="text-[11px] text-text-primary/50 uppercase tracking-wide mb-1">Will be stamped on</p>
-          <p className="text-xs break-words">
-            {scopedPages.length === 0
-              ? 'No pages'
-              : `${plural(scopedPages.length, 'page')} — ${formatPageRanges(scopedPages.map(p => pageNumbers.get(p.id)))}`}
-          </p>
-          {selectionDiffers && (
-            <button
-              type="button"
-              onClick={() => patch({ scope: [...targetPageIds] }, 'Update watermark pages')}
-              className="mt-1.5 text-[11px] text-accent hover:underline"
+      <Field label="Type">
+        <div className="flex gap-1.5" role="group" aria-label="Watermark type">
+          {[{ id: 'text', label: 'Text' }, { id: 'image', label: 'Image' }].map(opt => (
+            <ChoiceButton
+              key={opt.id}
+              selected={settings.kind === opt.id}
+              onClick={() => patch({ kind: opt.id }, `Watermark from ${opt.label.toLowerCase()}`)}
+              className="flex-1"
             >
-              Use the current selection ({targetPageIds.length})
-            </button>
-          )}
+              {opt.label}
+            </ChoiceButton>
+          ))}
         </div>
+      </Field>
 
-        {previewSize && (
-          <div>
-            <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">Preview</span>
-            <div
-              className="relative mx-auto rounded-md border border-border bg-white overflow-hidden"
-              style={{ width: PREVIEW_WIDTH, height: previewHeight }}
-            >
-              <WatermarkOverlay
-                config={settings}
-                width={PREVIEW_WIDTH}
-                height={previewHeight}
-                scale={previewScale}
-              />
+      {!isImage && (
+        <>
+          <Field label="Preset">
+            <div className="grid grid-cols-2 gap-1" role="group" aria-label="Watermark preset">
+              {PRESETS.map(preset => (
+                <ChoiceButton
+                  key={preset}
+                  dense
+                  selected={settings.text === preset}
+                  onClick={() => patch({ kind: 'text', text: preset }, `Watermark “${preset}”`)}
+                  className="truncate"
+                >
+                  {preset}
+                </ChoiceButton>
+              ))}
             </div>
-            <p className={`${captionClass} mt-1.5`}>
-              Placement only, on page {pageNumbers.get(previewPage.id)} — the page
-              content is not drawn here.
-            </p>
-          </div>
-        )}
+          </Field>
 
-        {active && (
-          <button
-            type="button"
-            onClick={() => commit('Remove watermark', draft => { draft.doc.watermark = null })}
-            className="w-full px-2 py-1.5 rounded-lg border border-border text-xs text-negative hover:border-negative"
+          <Field label="Text" htmlFor="watermark-text" error={textProblem}>
+            <TextInput
+              id="watermark-text"
+              value={settings.text ?? ''}
+              placeholder="Anything you like"
+              onChange={(e) => liveEdit('text', e.target.value, 'Change watermark text')}
+              onBlur={() => endEdit('text')}
+            />
+          </Field>
+
+          <Field label="Colour" htmlFor="watermark-color">
+            <ColorInput
+              id="watermark-color"
+              value={settings.color}
+              onChange={(e) => liveEdit('color', e.target.value, 'Change watermark colour')}
+              onBlur={() => endEdit('color')}
+            />
+          </Field>
+
+          <Field
+            label="Size"
+            htmlFor={sliderId('fontSize')}
+            value={`${Math.round(settings.fontSize)}pt`}
           >
-            Remove watermark
-          </button>
-        )}
+            {slider('fontSize', 'Change watermark size', { min: 8, max: 200, step: 1 })}
+          </Field>
+        </>
+      )}
 
-        <p className={`${captionClass} border-t border-border pt-3`}>
-          A watermark is not protection. Anyone with the saved file can remove it
-          in an editor; it marks a document, it does not secure one.
-        </p>
-      </div>
-    </div>
+      {isImage && (
+        <>
+          <Field label="Image">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png,image/jpeg"
+              className="hidden"
+              onChange={pickImage}
+            />
+            <Button full onClick={() => fileRef.current?.click()}>
+              {settings.dataUrl ? 'Choose a different image…' : 'Choose an image…'}
+            </Button>
+          </Field>
+
+          {settings.dataUrl ? (
+            <Plate>
+              <img
+                src={settings.dataUrl}
+                alt={settings.imageName ? `Watermark image ${settings.imageName}` : 'Watermark image'}
+                className="h-14 mx-auto object-contain"
+              />
+            </Plate>
+          ) : (
+            <>
+              <Problem role="status">No image chosen, so nothing will be drawn yet.</Problem>
+              <Note>PNG or JPEG, up to {MAX_IMAGE_BYTES / 1024 / 1024} MB.</Note>
+            </>
+          )}
+
+          {settings.imageName && <Note className="truncate">{settings.imageName}</Note>}
+
+          <Field
+            label="Size"
+            htmlFor={sliderId('imageScale')}
+            value={`${Math.round(settings.imageScale * 100)}% of the page`}
+          >
+            {slider('imageScale', 'Change watermark size', { min: 0.05, max: 1, step: 0.05 })}
+          </Field>
+        </>
+      )}
+
+      <Field label="Position" htmlFor="watermark-position">
+        <Select
+          id="watermark-position"
+          value={settings.position}
+          onChange={(e) => patch({ position: e.target.value }, 'Move watermark')}
+        >
+          {WATERMARK_POSITIONS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </Select>
+      </Field>
+
+      <Field label="Angle" htmlFor={sliderId('rotation')} value={`${Math.round(settings.rotation)}°`}>
+        {slider('rotation', 'Rotate watermark', { min: -90, max: 90, step: 1 })}
+      </Field>
+
+      <Field
+        label="Opacity"
+        htmlFor={sliderId('opacity')}
+        value={`${Math.round(settings.opacity * 100)}%`}
+      >
+        {slider('opacity', 'Change watermark opacity', { min: 0.05, max: 1, step: 0.05 })}
+      </Field>
+
+      <Field label="Pages">
+        <div className="space-y-1.5" role="radiogroup" aria-label="Pages to stamp">
+          <Radio
+            name="watermark-scope"
+            label="Every page"
+            hint={plural(state.pages.length, 'page')}
+            checked={!scopeIsSelection}
+            onChange={() => patch({ scope: 'all' }, 'Watermark every page')}
+          />
+          <Radio
+            name="watermark-scope"
+            label="Chosen pages"
+            hint={selectedPageIds.size === 0 && !scopeIsSelection
+              ? 'select pages first'
+              : plural(scopedPages.length, 'page')}
+            checked={scopeIsSelection}
+            disabled={selectedPageIds.size === 0 && !scopeIsSelection}
+            onChange={() => patch({ scope: [...targetPageIds] }, 'Limit watermark to chosen pages')}
+          />
+        </div>
+      </Field>
+
+      <Summary
+        label="Will be stamped on"
+        value={scopedPages.length === 0
+          ? 'No pages'
+          : `${plural(scopedPages.length, 'page')} — ${formatPageRanges(scopedPages.map(p => pageNumbers.get(p.id)))}`}
+      >
+        {selectionDiffers && (
+          <Button
+            size="sm"
+            full
+            onClick={() => patch({ scope: [...targetPageIds] }, 'Update watermark pages')}
+          >
+            Use the current selection ({targetPageIds.length})
+          </Button>
+        )}
+      </Summary>
+
+      {previewSize && (
+        <Field label="Preview">
+          <div
+            className="relative mx-auto overflow-hidden rounded-[var(--ui-radius)] border border-border bg-white"
+            style={{ width: PREVIEW_WIDTH, height: previewHeight }}
+          >
+            <WatermarkOverlay
+              config={settings}
+              width={PREVIEW_WIDTH}
+              height={previewHeight}
+              scale={previewScale}
+            />
+          </div>
+          <Note className="mt-1">
+            Placement only, on page {pageNumbers.get(previewPage.id)} — the page
+            content is not drawn here.
+          </Note>
+        </Field>
+      )}
+
+      <Callout tone="warning" title="A watermark is not protection">
+        Anyone with the saved file can remove it in an editor; it marks a
+        document, it does not secure one.
+      </Callout>
+
+      {active && (
+        <Button
+          variant="danger"
+          full
+          onClick={() => commit('Remove watermark', draft => { draft.doc.watermark = null })}
+        >
+          Remove watermark
+        </Button>
+      )}
+    </Panel>
   )
 }

@@ -2,6 +2,8 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { useEditor } from '../../state/useEditor'
 import { makeRaster, redactionMarksFor, renderPageImage } from '../../export/rasterize'
 import { formatBytes, plural } from './panelFormat'
+import { Button, Callout, Field, Panel, Radio } from '../primitives'
+import { Note, Summary, SummaryRow } from './panelParts'
 
 /**
  * Per-page cost of the PDF structure around a page image: the page dictionary,
@@ -32,13 +34,6 @@ const LEVELS = [
     detail: 'Redraws every page at 1× as JPEG 60. Smallest file, visibly softer type.',
   },
 ]
-
-const Field = ({ label, children }) => (
-  <div>
-    <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">{label}</span>
-    {children}
-  </div>
-)
 
 /**
  * Compression.
@@ -170,105 +165,82 @@ export default function CompressPanel() {
   const lossy = level.id !== 'light'
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Compress</h3>
+    <Panel title="Compress">
+      <Note>
+        Applies to the whole document — the page selection does not affect it.
+        The smaller file is written when you save.
+      </Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Applies to the whole document — the page selection does not affect it.
-          The smaller file is written when you save.
-        </p>
-
-        <Field label="Level">
-          <div className="space-y-1.5" role="radiogroup" aria-label="Compression level">
-            {LEVELS.map(opt => (
-              <label
-                key={opt.id}
-                className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer ${
-                  levelId === opt.id ? 'border-accent bg-accent/10' : 'border-border hover:border-accent/50'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="compress-level"
-                  checked={levelId === opt.id}
-                  onChange={() => setLevelId(opt.id)}
-                  className="mt-0.5"
-                />
-                <span className="text-xs">
-                  {opt.label}
-                  <span className="block text-[11px] text-text-primary/50 leading-snug">{opt.detail}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </Field>
-
-        {/* Said before the run, not after. */}
-        {lossy && (
-          <p className="text-[11px] text-negative leading-snug">
-            {level.label} redraws every page as an image. Selectable text, links
-            and form fields do not survive that: the saved file looks the same but
-            cannot be searched or copied from. OCR can add a searchable layer back
-            afterwards.
-          </p>
-        )}
-
-        <button
-          type="button"
-          onClick={lossy ? run : applyLight}
-          disabled={running || pages.length === 0}
-          className="w-full px-3 py-2 rounded-lg bg-accent-strong text-on-accent text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {running ? 'Compressing…' : `Compress ${plural(pages.length, 'page')}`}
-        </button>
-
-        {running && (
-          <button
-            type="button"
-            onClick={() => { cancelRef.current = true }}
-            className="w-full px-3 py-1.5 rounded-lg border border-border text-xs hover:border-accent"
-          >
-            Stop after this page
-          </button>
-        )}
-
-        <div className="rounded-lg bg-alt-bg border border-border p-2 space-y-1">
-          <div className="flex justify-between text-xs">
-            <span className="text-text-primary/60">Original</span>
-            <span>{formatBytes(sourceBytes)}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-text-primary/60">After</span>
-            <span>{estimate == null ? '—' : formatBytes(estimate)}</span>
-          </div>
-          {savedPercent != null && (
-            <div className="flex justify-between text-xs pt-1 border-t border-border">
-              <span className="text-text-primary/60">Saved</span>
-              <span className={savedPercent > 0 ? 'text-accent font-semibold' : 'text-negative font-semibold'}>
-                {savedPercent > 0 ? `${savedPercent}%` : `${Math.abs(savedPercent)}% larger`}
-              </span>
-            </div>
-          )}
+      <Field label="Level">
+        <div className="space-y-1.5" role="radiogroup" aria-label="Compression level">
+          {LEVELS.map(opt => (
+            <Radio
+              key={opt.id}
+              name="compress-level"
+              label={opt.label}
+              hint={opt.detail}
+              checked={levelId === opt.id}
+              onChange={() => setLevelId(opt.id)}
+            />
+          ))}
         </div>
+      </Field>
 
-        <p className="text-[11px] text-text-primary/50 leading-snug">
-          {estimate == null
-            ? 'Run a compression level to see what it costs. Light cannot be measured until you save — how much a rewrite recovers depends entirely on how the file was written.'
-            : 'Estimated from the page images plus the structure around them. The exact size is known when you save.'}
-        </p>
+      {/* Said before the run, not after. */}
+      {lossy && (
+        <Callout tone="danger" title={`${level.label} redraws every page as an image`}>
+          Selectable text, links and form fields do not survive that: the saved
+          file looks the same but cannot be searched or copied from. OCR can add
+          a searchable layer back afterwards.
+        </Callout>
+      )}
 
-        {compressed.length > 0 && (
-          <button
-            type="button"
-            onClick={revert}
-            disabled={running}
-            className="w-full px-2 py-1.5 rounded-lg border border-border text-xs text-negative hover:border-negative disabled:opacity-40"
-          >
-            Restore original pages
-          </button>
+      <Button
+        variant="primary"
+        full
+        loading={running}
+        disabled={running || pages.length === 0}
+        title={pages.length === 0 ? 'Open a PDF first' : undefined}
+        onClick={lossy ? run : applyLight}
+      >
+        Compress {plural(pages.length, 'page')}
+      </Button>
+
+      {running && (
+        <Button variant="secondary" full onClick={() => { cancelRef.current = true }}>
+          Stop after this page
+        </Button>
+      )}
+
+      <Summary label="Size">
+        <SummaryRow label="Original">{formatBytes(sourceBytes)}</SummaryRow>
+        <SummaryRow label="After">{estimate == null ? '—' : formatBytes(estimate)}</SummaryRow>
+        {savedPercent != null && (
+          <SummaryRow label="Saved" className="border-t border-border pt-1">
+            <span className={`font-semibold ${savedPercent > 0 ? 'text-positive' : 'text-negative'}`}>
+              {savedPercent > 0 ? `${savedPercent}%` : `${Math.abs(savedPercent)}% larger`}
+            </span>
+          </SummaryRow>
         )}
-      </div>
-    </div>
+      </Summary>
+
+      <Note>
+        {estimate == null
+          ? 'Run a compression level to see what it costs. Light cannot be measured until you save — how much a rewrite recovers depends entirely on how the file was written.'
+          : 'Estimated from the page images plus the structure around them. The exact size is known when you save.'}
+      </Note>
+
+      {compressed.length > 0 && (
+        <Button
+          variant="danger"
+          full
+          disabled={running}
+          title={running ? 'Wait for the current run to finish' : undefined}
+          onClick={revert}
+        >
+          Restore original pages
+        </Button>
+      )}
+    </Panel>
   )
 }

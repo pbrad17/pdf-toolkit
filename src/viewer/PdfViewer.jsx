@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useEditor } from '../state/useEditor'
-import PageCanvas from './PageCanvas'
+import PageCanvas, { PageSkeleton } from './PageCanvas'
 import TextLayer from './TextLayer'
 import AnnotationLayer from './AnnotationLayer'
 import {
@@ -168,11 +168,26 @@ export default function PdfViewer({ searchMatchesByPage, activeMatch, viewerRef 
           const mounted = i >= range.start && i <= range.end
           const size = layoutSize(page, scale)
 
+          // The sheet.
+          //
+          // bg-white is paper, not a theme surface: the page keeps the
+          // document's own colour in both themes, so anything drawn on it has to
+          // be judged against white rather than against the ramp.
+          //
+          // Elevation is the page shadow token rather than a generic shadow
+          // utility, and the 1px ring is the rim the surround needs at both ends
+          // of the ramp — on light the sheet would otherwise fade into the
+          // surround, and on dark a bare white-on-near-black edge has no
+          // mid-tone step to sit against.
+          //
+          // Ring and shadow are both painted outside the border box, so neither
+          // changes the page's size or the origin the canvas, text layer and
+          // annotations are positioned against.
           return (
             <div
               key={page.id}
               data-page-id={page.id}
-              className="absolute left-1/2 -translate-x-1/2 bg-white shadow-lg"
+              className="absolute left-1/2 -translate-x-1/2 bg-white ring-1 ring-border shadow-[var(--theme-page-shadow)]"
               style={{ top: offset.top, width: size.width, height: size.height }}
             >
               {mounted ? (
@@ -199,11 +214,18 @@ export default function PdfViewer({ searchMatchesByPage, activeMatch, viewerRef 
                 </>
               ) : (
                 // Placeholder keeps scroll height stable for unmounted pages.
-                <div className="w-full h-full bg-white" />
+                // Same treatment as a page mid-render, minus the pulse: nothing
+                // is being worked on yet, so nothing should look like it is.
+                <PageSkeleton height={size.height} />
               )}
 
-              <div className="absolute -bottom-[14px] left-0 right-0 text-center text-[10px] text-text-primary/40 select-none">
-                {i + 1}
+              {/* Page number, in the gap below the sheet. text-subtle is the
+                  readout step and is measured against title-bg (5.25:1 light);
+                  the alpha it replaces composited to 2.21:1 there. */}
+              <div className="absolute -bottom-[14px] left-0 right-0 flex justify-center pointer-events-none select-none">
+                <span className="text-[11px] leading-none font-medium tabular-nums tracking-wide text-text-subtle">
+                  {i + 1}
+                </span>
               </div>
             </div>
           )

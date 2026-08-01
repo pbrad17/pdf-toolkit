@@ -1,8 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useEditor } from '../../state/useEditor'
 import { displaySize, effectiveRotation } from '../../state/documentModel'
-
-const buttonClass ='w-full px-2 py-1.5 rounded-lg border border-border text-xs hover:border-accent disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border'
+import { plural } from './panelFormat'
+import {
+  Button, Callout, Checkbox, NumberInput, Panel, SectionHeading, Slider,
+} from '../primitives'
+import { Note, Summary } from './panelParts'
 
 /**
  * Crop insets are stored in UNROTATED page space — the space the PDF boxes are
@@ -305,8 +308,8 @@ export default function CropPanel() {
   const referenceNumber = reference ? state.pages.indexOf(reference) + 1 : 0
 
   const scope = selectedPageIds.size > 0
-    ? `${pages.length} selected page${pages.length === 1 ? '' : 's'}`
-    : `all ${pages.length} page${pages.length === 1 ? '' : 's'}`
+    ? `${plural(pages.length, 'selected page')}`
+    : `all ${plural(pages.length, 'page')}`
 
   // Insets are unrotated page space, so on a turned page "Top" is not the top of
   // the screen. Saying so is cheaper than leaving the user to discover it by
@@ -314,61 +317,65 @@ export default function CropPanel() {
   const rotated = reference ? effectiveRotation(reference) !== 0 : false
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Crop</h3>
+    <Panel title="Crop">
+      <Note>
+        Trims the page edges. Nothing is deleted — the content outside the crop
+        is hidden, and removing the crop brings it back.
+      </Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Trims the page edges. Nothing is deleted — the content outside the crop
-          is hidden, and removing the crop brings it back.
-        </p>
+      <Summary label="Applies to" value={scope}>
+        {varyingSizes && (
+          <Note>
+            These pages are not all the same size. Limits are measured against
+            the smallest one.
+          </Note>
+        )}
+        {mixed && (
+          <Note>
+            They are cropped differently right now. Changing any edge sets all of
+            them to the values below.
+          </Note>
+        )}
+      </Summary>
 
-        <div className="rounded-lg bg-alt-bg border border-border p-2">
-          <p className="text-[11px] text-text-primary/50 uppercase tracking-wide mb-1">Applies to</p>
-          <p className="text-xs">{scope}</p>
-          {varyingSizes && (
-            <p className="text-[11px] text-text-primary/50 leading-snug mt-1">
-              These pages are not all the same size. Limits are measured against
-              the smallest one.
-            </p>
-          )}
-          {mixed && (
-            <p className="text-[11px] text-text-primary/50 leading-snug mt-1">
-              They are cropped differently right now. Changing any edge sets all
-              of them to the values below.
-            </p>
-          )}
-          {rotated && (
-            <p className="text-[11px] text-text-primary/50 leading-snug mt-1">
-              Page {referenceNumber} is rotated. The edges below are the page&apos;s
-              own edges, so they will not line up with the screen.
-            </p>
-          )}
-        </div>
+      {rotated && (
+        <Callout tone="info" title={`Page ${referenceNumber} is rotated`}>
+          The edges below are the page&apos;s own edges, so they will not line up
+          with the screen.
+        </Callout>
+      )}
 
-        <label className="flex items-center gap-2 text-xs cursor-pointer">
-          <input type="checkbox" checked={linked} onChange={(e) => setLinked(e.target.checked)} />
-          Link all edges
-        </label>
+      <Checkbox
+        label="Link all edges"
+        checked={linked}
+        onChange={(e) => setLinked(e.target.checked)}
+      />
 
-        {EDGES.map(edge => {
-          const max = maxFor(edge, crop)
-          const value = Math.min(crop[edge.key], max)
-          const id = `crop-${edge.key}`
-          return (
-            <div key={edge.key}>
-              <div className="flex items-center justify-between mb-1.5">
-                <label htmlFor={id} className="text-[11px] uppercase tracking-wide text-text-primary/50">
-                  {edge.label}
-                </label>
-                <div className="flex items-center gap-1">
-                  <input
+      {EDGES.map(edge => {
+        const max = maxFor(edge, crop)
+        const value = Math.min(crop[edge.key], max)
+        const id = `crop-${edge.key}`
+        return (
+          <div key={edge.key}>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label
+                htmlFor={id}
+                className="text-[11px] font-medium uppercase tracking-wider text-text-muted"
+              >
+                {edge.label}
+              </label>
+              <div className="flex items-center gap-1">
+                {/* Width lives on the wrapper: NumberInput is w-full by
+                    contract, and a competing width utility on the input itself
+                    would resolve by stylesheet order. */}
+                <div className="w-16">
+                  <NumberInput
                     id={id}
-                    type="number"
                     min={0}
                     max={Math.round(max)}
                     step={1}
                     value={typing?.edge === edge.key ? typing.text : formatPt(value)}
+                    className="text-right"
                     onFocus={() => setTyping({ edge: edge.key, text: formatPt(value) })}
                     onChange={(e) => {
                       setTyping({ edge: edge.key, text: e.target.value })
@@ -377,80 +384,82 @@ export default function CropPanel() {
                     }}
                     onBlur={finish}
                     onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
-                    className="w-16 px-1.5 py-1 rounded-md bg-alt-bg border border-border text-xs text-right tabular-nums focus:outline-none focus:border-accent"
                   />
-                  <span className="text-[11px] text-text-primary/50">pt</span>
                 </div>
+                <span className="text-[11px] text-text-subtle">pt</span>
               </div>
-              <input
-                type="range"
-                min={0}
-                max={Math.max(1, Math.round(max))}
-                step={1}
-                value={value}
-                aria-label={`${edge.label} crop in points`}
-                onChange={(e) => setEdge(edge, Number(e.target.value))}
-                onPointerUp={finish}
-                onKeyUp={finish}
-                onBlur={finish}
-                className="w-full cursor-pointer"
-              />
             </div>
-          )
-        })}
-
-        {reference && (
-          <div className="rounded-lg bg-alt-bg border border-border p-2">
-            <p className="text-[11px] text-text-primary/50 uppercase tracking-wide mb-1">
-              Result — page {referenceNumber}
-            </p>
-            <p className="text-xs tabular-nums">
-              {formatPt(visible.width)} × {formatPt(visible.height)} pt
-            </p>
-            <p className="text-[11px] text-text-primary/50 tabular-nums">
-              {formatIn(visible.width)} × {formatIn(visible.height)} in
-            </p>
+            <Slider
+              min={0}
+              max={Math.max(1, Math.round(max))}
+              step={1}
+              value={value}
+              aria-label={`${edge.label} crop in points`}
+              className="cursor-pointer"
+              onChange={(e) => setEdge(edge, Number(e.target.value))}
+              onPointerUp={finish}
+              onKeyUp={finish}
+              onBlur={finish}
+            />
           </div>
-        )}
+        )
+      })}
 
-        <div className="space-y-2">
-          <h4 className="text-[11px] uppercase tracking-wide text-text-primary/50">Presets</h4>
-          <button
-            type="button"
-            onClick={removeMargins}
-            disabled={measuring || pages.length === 0}
-            className={buttonClass}
-          >
-            {measuring ? 'Measuring…' : 'Remove margins'}
-          </button>
-          <button type="button" onClick={squareCrop} disabled={!reference} className={buttonClass}>
-            Square
-          </button>
-          <button
-            type="button"
-            onClick={() => applyCrop(crop, state.pages.map(p => p.id))}
-            disabled={selectedPageIds.size === 0 || isZero(crop)}
-            className={buttonClass}
-          >
-            Apply to all {state.pages.length} page{state.pages.length === 1 ? '' : 's'}
-          </button>
-          <p className="text-[11px] text-text-primary/50 leading-snug">
-            Remove margins measures where the ink is on each page and trims to the
-            widest content across them, so nothing is cut off.
-          </p>
-        </div>
+      {reference && (
+        <Summary
+          label={`Result — page ${referenceNumber}`}
+          value={`${formatPt(visible.width)} × ${formatPt(visible.height)} pt`}
+        >
+          <Note className="tabular-nums">
+            {formatIn(visible.width)} × {formatIn(visible.height)} in
+          </Note>
+        </Summary>
+      )}
 
-        <div className="pt-4 border-t border-border">
-          <button
-            type="button"
-            onClick={() => applyCrop(ZERO)}
-            disabled={pages.length === 0 || (isZero(crop) && !mixed)}
-            className="w-full px-2 py-1.5 rounded-lg border border-border text-xs text-negative hover:border-negative disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-border"
-          >
-            Remove crop
-          </button>
-        </div>
+      <div className="space-y-1.5 border-t border-border pt-3">
+        <SectionHeading>Presets</SectionHeading>
+        <Button
+          full
+          loading={measuring}
+          disabled={measuring || pages.length === 0}
+          title={pages.length === 0 ? 'No pages in scope' : undefined}
+          onClick={removeMargins}
+        >
+          Remove margins
+        </Button>
+        <Button
+          full
+          disabled={!reference}
+          title={!reference ? 'No pages in scope' : undefined}
+          onClick={squareCrop}
+        >
+          Square
+        </Button>
+        <Button
+          full
+          disabled={selectedPageIds.size === 0 || isZero(crop)}
+          title={selectedPageIds.size === 0
+            ? 'Select some pages, set a crop, then apply it everywhere'
+            : undefined}
+          onClick={() => applyCrop(crop, state.pages.map(p => p.id))}
+        >
+          Apply to all {plural(state.pages.length, 'page')}
+        </Button>
+        <Note>
+          Remove margins measures where the ink is on each page and trims to the
+          widest content across them, so nothing is cut off.
+        </Note>
       </div>
-    </div>
+
+      <Button
+        variant="danger"
+        full
+        disabled={pages.length === 0 || (isZero(crop) && !mixed)}
+        title={isZero(crop) && !mixed ? 'Nothing is cropped' : undefined}
+        onClick={() => applyCrop(ZERO)}
+      >
+        Remove crop
+      </Button>
+    </Panel>
   )
 }

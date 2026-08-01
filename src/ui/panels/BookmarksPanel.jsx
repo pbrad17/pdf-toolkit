@@ -4,29 +4,19 @@ import {
   MAX_TITLE_LENGTH, buildBookmarkTree, createBookmark, flattenBookmarkTree,
   moveBookmark, normalizeBookmarkOrder, removeBookmarkSubtree, setBookmarkParent,
 } from '../../export/bookmarks'
+import { plural } from './panelFormat'
+import {
+  Button, Callout, EmptyState, Field, Icon, IconButton, Panel, SectionHeading,
+  Select, TextInput,
+} from '../primitives'
+import { Note } from './panelParts'
 
-const inputClass = 'w-full px-2 py-1.5 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent'
-const captionClass = 'text-[11px] text-text-primary/50 leading-snug'
-
-const Icon = ({ d }) => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-       strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d={d} />
-  </svg>
-)
-
-const RowButton = ({ label, path, onClick, disabled }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    aria-label={label}
-    title={label}
-    className="p-1 rounded text-text-primary/45 hover:text-accent disabled:opacity-20 disabled:hover:text-text-primary/45"
-  >
-    <Icon d={path} />
-  </button>
-)
+const BOOKMARK_ICON = 'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'
+const UP = 'M18 15l-6-6-6 6'
+const DOWN = 'M6 9l6 6 6-6'
+const NEST = 'M9 6l6 6-6 6'
+const UNNEST = 'M15 6l-6 6 6 6'
+const CLOSE = 'M18 6L6 18M6 6l12 12'
 
 /**
  * Bookmarks — build the document outline.
@@ -95,163 +85,155 @@ export default function BookmarksPanel() {
   }
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Bookmarks</h3>
+    <Panel title="Bookmarks">
+      <Note>
+        A table of contents for the document. Bookmarks appear in the saved
+        file&apos;s navigation pane and jump to the page you pick here.
+      </Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          A table of contents for the document. Bookmarks appear in the saved
-          file's navigation pane and jump to the page you pick here.
-        </p>
+      <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); add() }}>
+        <Field label="Title" htmlFor="bookmark-title">
+          <TextInput
+            id="bookmark-title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={MAX_TITLE_LENGTH}
+            placeholder="Chapter 1"
+          />
+        </Field>
 
-        <form
-          className="space-y-2"
-          onSubmit={(e) => { e.preventDefault(); add() }}
-        >
-          <div>
-            <label htmlFor="bookmark-title" className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">
-              Title
-            </label>
-            <input
-              id="bookmark-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              maxLength={MAX_TITLE_LENGTH}
-              placeholder="Chapter 1"
-              className={inputClass}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="bookmark-page" className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">
-              Goes to
-            </label>
-            <select
-              id="bookmark-page"
-              value={pageId ?? ''}
-              onChange={(e) => setPickedPageId(e.target.value)}
-              className={inputClass}
-            >
-              {pages.map((page, index) => (
-                <option key={page.id} value={page.id}>Page {index + 1}</option>
-              ))}
-            </select>
-          </div>
-
-          {topLevel.length > 0 && (
-            <div>
-              <label htmlFor="bookmark-parent" className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">
-                Nest under
-              </label>
-              <select
-                id="bookmark-parent"
-                value={parentId}
-                onChange={(e) => setPickedParentId(e.target.value)}
-                className={inputClass}
-              >
-                <option value="">Top level</option>
-                {topLevel.map(row => (
-                  <option key={row.bookmark.id} value={row.bookmark.id}>{row.bookmark.title}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={!trimmed || !pageId}
-            className="w-full px-3 py-2 rounded-lg bg-accent-strong text-on-accent text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+        <Field label="Goes to" htmlFor="bookmark-page">
+          <Select
+            id="bookmark-page"
+            value={pageId ?? ''}
+            onChange={(e) => setPickedPageId(e.target.value)}
           >
-            Add bookmark
-          </button>
-        </form>
+            {pages.map((page, index) => (
+              <option key={page.id} value={page.id}>Page {index + 1}</option>
+            ))}
+          </Select>
+        </Field>
 
-        <div className="pt-4 border-t border-border space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] uppercase tracking-wide text-text-primary/50">
-              {bookmarks.length} bookmark{bookmarks.length === 1 ? '' : 's'}
-            </span>
-            {bookmarks.length > 0 && (
-              <button
-                type="button"
-                onClick={() => commit('Remove all bookmarks', draft => { draft.doc.bookmarks = [] })}
-                className="text-[11px] text-negative hover:underline"
-              >
-                Remove all
-              </button>
-            )}
-          </div>
+        {topLevel.length > 0 && (
+          <Field label="Nest under" htmlFor="bookmark-parent">
+            <Select
+              id="bookmark-parent"
+              value={parentId}
+              onChange={(e) => setPickedParentId(e.target.value)}
+            >
+              <option value="">Top level</option>
+              {topLevel.map(row => (
+                <option key={row.bookmark.id} value={row.bookmark.id}>{row.bookmark.title}</option>
+              ))}
+            </Select>
+          </Field>
+        )}
 
-          {rows.length === 0 ? (
-            <p className={captionClass}>
-              None yet. Nothing is added to the saved file until you add one.
-            </p>
-          ) : (
-            <ul className="space-y-0.5">
-              {rows.map((row, index) => {
-                const { bookmark, depth, children, index: position, siblingCount } = row
-                const indentTarget = depth === 0 && children.length === 0 ? indentTargetFor(index) : null
-                return (
-                  <li
-                    key={bookmark.id}
-                    className="flex items-center gap-0.5 rounded-md px-1 py-1 hover:bg-alt-bg"
-                    style={{ paddingLeft: 4 + depth * 12 }}
-                  >
-                    <span className="flex-1 min-w-0 text-xs truncate" title={bookmark.title}>
-                      {bookmark.title}
-                      <span className="ml-1.5 text-text-primary/40">p.{pageNumbers.get(bookmark.pageId) ?? '?'}</span>
+        <Button
+          type="submit"
+          variant="primary"
+          full
+          disabled={!trimmed || !pageId}
+          title={!trimmed ? 'Give the bookmark a title first' : undefined}
+        >
+          Add bookmark
+        </Button>
+      </form>
+
+      <div className="space-y-1.5 border-t border-border pt-3">
+        <SectionHeading
+          action={bookmarks.length > 0 ? (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => commit('Remove all bookmarks', draft => { draft.doc.bookmarks = [] })}
+            >
+              Remove all
+            </Button>
+          ) : null}
+        >
+          {plural(bookmarks.length, 'bookmark')}
+        </SectionHeading>
+
+        {rows.length === 0 ? (
+          <EmptyState
+            icon={<Icon d={BOOKMARK_ICON} size={18} />}
+            title="No bookmarks yet"
+            line="Nothing is added to the saved file until you add one. Give one a title above and it appears here."
+          />
+        ) : (
+          <ul className="space-y-0.5">
+            {rows.map((row, index) => {
+              const { bookmark, depth, children, index: position, siblingCount } = row
+              const indentTarget = depth === 0 && children.length === 0 ? indentTargetFor(index) : null
+              return (
+                <li
+                  key={bookmark.id}
+                  className="flex items-center gap-0.5 rounded-[var(--ui-radius-sm)] px-1 py-0.5 hover:bg-section-bg"
+                  style={{ paddingLeft: 4 + depth * 12 }}
+                >
+                  <span className="flex-1 min-w-0 text-xs text-text-primary truncate" title={bookmark.title}>
+                    {bookmark.title}
+                    <span className="ml-1.5 text-text-subtle">
+                      p.{pageNumbers.get(bookmark.pageId) ?? '?'}
                     </span>
+                  </span>
 
-                    <RowButton
-                      label={`Move "${bookmark.title}" up`}
-                      path="M18 15l-6-6-6 6"
-                      disabled={position === 0}
-                      onClick={() => mutate('Reorder bookmarks', list => moveBookmark(list, bookmark.id, -1))}
-                    />
-                    <RowButton
-                      label={`Move "${bookmark.title}" down`}
-                      path="M6 9l6 6 6-6"
-                      disabled={position === siblingCount - 1}
-                      onClick={() => mutate('Reorder bookmarks', list => moveBookmark(list, bookmark.id, 1))}
-                    />
-                    {depth === 0 ? (
-                      <RowButton
-                        label={`Nest "${bookmark.title}" under the bookmark above`}
-                        path="M9 6l6 6-6 6"
-                        disabled={!indentTarget}
-                        onClick={() => mutate('Nest bookmark', list => setBookmarkParent(list, bookmark.id, indentTarget))}
-                      />
-                    ) : (
-                      <RowButton
-                        label={`Move "${bookmark.title}" to the top level`}
-                        path="M15 6l-6 6 6 6"
-                        onClick={() => mutate('Un-nest bookmark', list => setBookmarkParent(list, bookmark.id, null))}
-                      />
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => mutate(
-                        children.length > 0 ? 'Delete bookmark and its children' : 'Delete bookmark',
-                        list => removeBookmarkSubtree(list, bookmark.id),
-                      )}
-                      aria-label={`Delete bookmark "${bookmark.title}"`}
-                      title="Delete"
-                      className="p-1 rounded text-text-primary/45 hover:text-negative"
+                  <IconButton
+                    size="sm"
+                    label={`Move "${bookmark.title}" up`}
+                    disabled={position === 0}
+                    onClick={() => mutate('Reorder bookmarks', list => moveBookmark(list, bookmark.id, -1))}
+                  >
+                    <Icon d={UP} size={14} />
+                  </IconButton>
+                  <IconButton
+                    size="sm"
+                    label={`Move "${bookmark.title}" down`}
+                    disabled={position === siblingCount - 1}
+                    onClick={() => mutate('Reorder bookmarks', list => moveBookmark(list, bookmark.id, 1))}
+                  >
+                    <Icon d={DOWN} size={14} />
+                  </IconButton>
+                  {depth === 0 ? (
+                    <IconButton
+                      size="sm"
+                      label={`Nest "${bookmark.title}" under the bookmark above`}
+                      disabled={!indentTarget}
+                      onClick={() => mutate('Nest bookmark', list => setBookmarkParent(list, bookmark.id, indentTarget))}
                     >
-                      <Icon d="M18 6L6 18M6 6l12 12" />
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-
-        <p className={`${captionClass} border-t border-border pt-3`}>
-          Nesting is one level deep here. A bookmark on a page that is later
-          deleted goes with it.
-        </p>
+                      <Icon d={NEST} size={14} />
+                    </IconButton>
+                  ) : (
+                    <IconButton
+                      size="sm"
+                      label={`Move "${bookmark.title}" to the top level`}
+                      onClick={() => mutate('Un-nest bookmark', list => setBookmarkParent(list, bookmark.id, null))}
+                    >
+                      <Icon d={UNNEST} size={14} />
+                    </IconButton>
+                  )}
+                  <IconButton
+                    size="sm"
+                    variant="danger"
+                    label={`Delete bookmark "${bookmark.title}"`}
+                    onClick={() => mutate(
+                      children.length > 0 ? 'Delete bookmark and its children' : 'Delete bookmark',
+                      list => removeBookmarkSubtree(list, bookmark.id),
+                    )}
+                  >
+                    <Icon d={CLOSE} size={14} />
+                  </IconButton>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
-    </div>
+
+      <Callout tone="info" title="Nesting is one level deep here">
+        A bookmark on a page that is later deleted goes with it.
+      </Callout>
+    </Panel>
   )
 }

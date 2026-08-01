@@ -4,9 +4,15 @@ import {
   FIELD_TYPES, countFieldValues, hasFieldValue, readFieldValue, scanFormFields,
   shouldFlatten, withFieldValue, withFlatten, withoutFieldValue, withoutFieldValues,
 } from '../../export/forms'
+import { plural } from './panelFormat'
+import {
+  Button, Callout, Checkbox, EmptyState, Icon, Panel, Radio, SectionHeading,
+  Select, TextArea, TextInput,
+} from '../primitives'
+import { ListBox, Note } from './panelParts'
 
-const inputClass = 'w-full px-2 py-1.5 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent'
-const captionClass = 'text-[11px] text-text-primary/50 leading-snug'
+const FORM_ICON =
+  'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11'
 
 /**
  * Form filling.
@@ -106,98 +112,90 @@ export default function FormsPanel() {
   useEffect(() => () => endInteraction('Fill form'), [endInteraction])
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Fill forms</h3>
+    <Panel title="Fill forms">
+      <Note>
+        Applies to the whole document — the page selection does not affect it.
+        Values are written into the file when you save.
+      </Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Applies to the whole document — the page selection does not affect it.
-          Values are written into the file when you save.
-        </p>
+      {scanning && <Note role="status">Looking for form fields…</Note>}
 
-        {scanning && <p className={captionClass}>Looking for form fields…</p>}
+      {!scanning && fields.length === 0 && (
+        <EmptyState
+          icon={<Icon d={FORM_ICON} size={18} />}
+          title="No fillable fields"
+          line="Forms have to be built into the PDF. If the page only looks like a form — printed boxes and lines — use the Text tool to type on top of it."
+        />
+      )}
 
-        {!scanning && fields.length === 0 && (
-          <div className="rounded-lg border border-border bg-alt-bg p-3 space-y-2">
-            <p className="text-xs text-text-primary/70 leading-snug">
-              This document has no fillable form fields.
-            </p>
-            <p className={captionClass}>
-              Forms have to be built into the PDF. If the page only looks like a
-              form — printed boxes and lines — use the Text tool to type on top
-              of it instead.
-            </p>
+      {/* One Callout holding every scan warning rather than one box each: they
+          all say the same kind of thing, and a stack of identical boxes reads
+          as noise. role="status" is kept on the wrapper because these appear
+          asynchronously, after the scan resolves. */}
+      {warnings.length > 0 && (
+        <div role="status">
+          <Callout tone="warning" title="About this form">
+            {warnings.length === 1 ? warnings[0] : (
+              <ul className="list-disc pl-4 space-y-1">
+                {warnings.map((warning, i) => <li key={i}>{warning}</li>)}
+              </ul>
+            )}
+          </Callout>
+        </div>
+      )}
+
+      {fields.length > 0 && (
+        <>
+          <SectionHeading
+            action={entered > 0 ? (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => commit('Clear form entries', draft => {
+                  draft.doc.formValues = withoutFieldValues(draft.doc.formValues)
+                })}
+              >
+                Clear {entered}
+              </Button>
+            ) : null}
+          >
+            {plural(fields.length, 'field')}
+          </SectionHeading>
+
+          <div className="space-y-1.5">
+            {fields.map((field, index) => (
+              <FieldRow
+                key={field.name}
+                field={field}
+                index={index}
+                pageNumber={pageNumberOf(field)}
+                edited={hasFieldValue(values, field.name)}
+                value={hasFieldValue(values, field.name)
+                  ? readFieldValue(values, field.name)
+                  : field.initial}
+                onSet={setValue}
+                onReset={resetValue}
+                onTypeStart={beginTyping}
+                onType={typeValue}
+                onTypeEnd={endTyping}
+              />
+            ))}
           </div>
-        )}
 
-        {warnings.map((warning, i) => (
-          <p key={i} role="status" className="text-[11px] text-text-primary/60 leading-snug border-l-2 border-accent/50 pl-2">
-            {warning}
-          </p>
-        ))}
-
-        {fields.length > 0 && (
-          <>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] uppercase tracking-wide text-text-primary/50">
-                {fields.length} field{fields.length === 1 ? '' : 's'}
-              </span>
-              {entered > 0 && (
-                <button
-                  type="button"
-                  onClick={() => commit('Clear form entries', draft => {
-                    draft.doc.formValues = withoutFieldValues(draft.doc.formValues)
-                  })}
-                  className="text-[11px] text-negative hover:underline"
-                >
-                  Clear {entered}
-                </button>
+          <div className="space-y-1.5 border-t border-border pt-3">
+            <Checkbox
+              label="Flatten after filling"
+              hint="Draws the answers into the page and removes the fields, so nobody can change them afterwards. Leave it off to keep the form editable in the saved file."
+              checked={flatten}
+              onChange={(e) => commit(
+                e.target.checked ? 'Flatten form on save' : 'Keep form editable',
+                draft => { draft.doc.formValues = withFlatten(draft.doc.formValues, e.target.checked) },
               )}
-            </div>
-
-            <div className="space-y-2">
-              {fields.map((field, index) => (
-                <FieldRow
-                  key={field.name}
-                  field={field}
-                  index={index}
-                  pageNumber={pageNumberOf(field)}
-                  edited={hasFieldValue(values, field.name)}
-                  value={hasFieldValue(values, field.name)
-                    ? readFieldValue(values, field.name)
-                    : field.initial}
-                  onSet={setValue}
-                  onReset={resetValue}
-                  onTypeStart={beginTyping}
-                  onType={typeValue}
-                  onTypeEnd={endTyping}
-                />
-              ))}
-            </div>
-
-            <div className="pt-4 border-t border-border space-y-2">
-              <label className="flex items-start gap-2 text-xs cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={flatten}
-                  onChange={(e) => commit(
-                    e.target.checked ? 'Flatten form on save' : 'Keep form editable',
-                    draft => { draft.doc.formValues = withFlatten(draft.doc.formValues, e.target.checked) },
-                  )}
-                  className="mt-0.5"
-                />
-                Flatten after filling
-              </label>
-              <p className={captionClass}>
-                Draws the answers into the page and removes the fields, so nobody
-                can change them afterwards. Leave it off to keep the form
-                editable in the saved file.
-              </p>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+            />
+          </div>
+        </>
+      )}
+    </Panel>
   )
 }
 
@@ -223,28 +221,33 @@ function FieldRow({
   ].filter(Boolean).join(' · ')
 
   return (
-    <div className={`rounded-lg border p-2 space-y-1.5 ${edited ? 'border-accent/60 bg-accent/5' : 'border-border bg-alt-bg'}`}>
+    <div
+      className={`rounded-[var(--ui-radius)] border p-2 space-y-1.5 ${
+        edited ? 'border-accent-soft-border bg-accent-soft' : 'border-border bg-alt-bg'
+      }`}
+    >
       <div className="flex items-start justify-between gap-1">
         <Name
           id={`${id}-label`}
           htmlFor={field.type === 'radio' ? undefined : id}
-          className="block text-[11px] text-text-primary/80 break-all leading-snug"
+          className="block text-[11px] leading-snug text-text-primary break-all"
           title={field.name}
         >
           {field.name}
         </Name>
         {edited && (
-          <button
-            type="button"
-            onClick={() => onReset(field.name)}
+          <Button
+            variant="ghost"
+            size="sm"
             aria-label={`Reset ${field.name}`}
-            className="text-[11px] text-text-primary/40 hover:text-negative shrink-0"
+            className="shrink-0"
+            onClick={() => onReset(field.name)}
           >
             Reset
-          </button>
+          </Button>
         )}
       </div>
-      <p className="text-[10px] uppercase tracking-wide text-text-primary/35">{meta}</p>
+      <p className="text-[11px] uppercase tracking-wider text-text-subtle">{meta}</p>
 
       <FieldControl
         field={field}
@@ -273,25 +276,21 @@ function FieldControl({ field, id, index, value, onSet, onTypeStart, onType, onT
       onFocus: () => onTypeStart(name),
       onChange: (e) => onType(name, e.target.value),
       onBlur: () => onTypeEnd(name),
-      className: `${inputClass} disabled:opacity-50`,
     }
     return field.multiline
-      ? <textarea {...shared} rows={3} className={`${inputClass} resize-y disabled:opacity-50`} />
-      : <input {...shared} type={field.password ? 'password' : 'text'} spellCheck={false} />
+      ? <TextArea {...shared} rows={3} />
+      : <TextInput {...shared} type={field.password ? 'password' : 'text'} spellCheck={false} />
   }
 
   if (type === 'checkbox') {
     return (
-      <label className={`flex items-center gap-2 text-xs ${readOnly ? 'opacity-50' : 'cursor-pointer'}`}>
-        <input
-          id={id}
-          type="checkbox"
-          checked={Boolean(value)}
-          disabled={readOnly}
-          onChange={(e) => onSet(name, e.target.checked, `${e.target.checked ? 'Check' : 'Uncheck'} "${name}"`)}
-        />
-        {value ? 'Checked' : 'Unchecked'}
-      </label>
+      <Checkbox
+        id={id}
+        label={value ? 'Checked' : 'Unchecked'}
+        checked={Boolean(value)}
+        disabled={readOnly}
+        onChange={(e) => onSet(name, e.target.checked, `${e.target.checked ? 'Check' : 'Uncheck'} "${name}"`)}
+      />
     )
   }
 
@@ -300,25 +299,19 @@ function FieldControl({ field, id, index, value, onSet, onTypeStart, onType, onT
     return (
       <div className="space-y-1" role="radiogroup" aria-labelledby={`${id}-label`}>
         {options.map(option => (
-          <label key={option} className={`flex items-center gap-2 text-xs ${readOnly ? 'opacity-50' : 'cursor-pointer'}`}>
-            <input
-              type="radio"
-              name={`form-radio-${index}`}
-              checked={selected === option}
-              disabled={readOnly}
-              onChange={() => onSet(name, option, `Select "${option}"`)}
-            />
-            <span className="break-all">{option}</span>
-          </label>
+          <Radio
+            key={option}
+            name={`form-radio-${index}`}
+            label={<span className="break-all">{option}</span>}
+            checked={selected === option}
+            disabled={readOnly}
+            onChange={() => onSet(name, option, `Select "${option}"`)}
+          />
         ))}
         {selected !== '' && !readOnly && (
-          <button
-            type="button"
-            onClick={() => onSet(name, '', `Clear "${name}"`)}
-            className="text-[11px] text-text-primary/40 hover:text-text-primary"
-          >
+          <Button variant="ghost" size="sm" onClick={() => onSet(name, '', `Clear "${name}"`)}>
             None
-          </button>
+          </Button>
         )}
       </div>
     )
@@ -332,9 +325,8 @@ function FieldControl({ field, id, index, value, onSet, onTypeStart, onType, onT
     if (field.editable) {
       return (
         <>
-          <input
+          <TextInput
             id={id}
-            type="text"
             list={`${id}-options`}
             value={selected}
             disabled={readOnly}
@@ -342,7 +334,6 @@ function FieldControl({ field, id, index, value, onSet, onTypeStart, onType, onT
             onFocus={() => onTypeStart(name)}
             onChange={(e) => onType(name, e.target.value)}
             onBlur={() => onTypeEnd(name)}
-            className={`${inputClass} disabled:opacity-50`}
           />
           <datalist id={`${id}-options`}>
             {options.map(option => <option key={option} value={option} />)}
@@ -351,23 +342,22 @@ function FieldControl({ field, id, index, value, onSet, onTypeStart, onType, onT
       )
     }
     return (
-      <select
+      <Select
         id={id}
         value={selected}
         disabled={readOnly}
         onChange={(e) => onSet(name, e.target.value, e.target.value ? `Select "${e.target.value}"` : `Clear "${name}"`)}
-        className={`${inputClass} disabled:opacity-50`}
       >
         <option value="">— none —</option>
         {options.map(option => <option key={option} value={option}>{option}</option>)}
-      </select>
+      </Select>
     )
   }
 
   if (type === 'optionlist') {
     const selected = Array.isArray(value) ? value : [value].filter(v => typeof v === 'string' && v !== '')
     return (
-      <select
+      <ListBox
         id={id}
         multiple={field.multiselect}
         size={Math.min(4, Math.max(2, options.length))}
@@ -379,11 +369,10 @@ function FieldControl({ field, id, index, value, onSet, onTypeStart, onType, onT
             : [e.target.value].filter(Boolean)
           onSet(name, picked, picked.length > 0 ? `Select in "${name}"` : `Clear "${name}"`)
         }}
-        className={`${inputClass} disabled:opacity-50`}
       >
         {!field.multiselect && <option value="">— none —</option>}
         {options.map(option => <option key={option} value={option}>{option}</option>)}
-      </select>
+      </ListBox>
     )
   }
 

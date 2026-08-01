@@ -3,6 +3,7 @@ import { useEditor } from '../state/useEditor'
 import {
   loadLatestSession, prepareRestore, deleteSession, clearAllData, getStorageSummary,
 } from '../state/persistence'
+import { Button, Callout } from './primitives'
 
 const formatBytes = (n) => {
   if (!n) return '0 KB'
@@ -167,64 +168,65 @@ export default function RestorePrompt() {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+    // The scrim is the one surface in the app that does not flip with the
+    // theme; see --theme-scrim. A modal genuinely floats, so this is one of the
+    // three places DESIGN.md allows a shadow.
+    <div className="fixed inset-0 z-50 bg-scrim flex items-center justify-center p-3">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="restore-title"
-        className="w-full max-w-md max-h-[90vh] overflow-auto rounded-xl bg-dark-bg border border-border shadow-2xl p-5"
+        className="w-full max-w-md max-h-[90vh] overflow-auto rounded-[var(--ui-radius)] bg-dark-bg border border-border shadow-[var(--theme-shadow-lg)] p-3 space-y-3"
       >
-        <h2 id="restore-title" className="text-base font-semibold mb-1">Restore your last session?</h2>
-        <p className="text-sm text-text-primary/70 mb-4">
-          This browser still has work from {candidate.age}.
-        </p>
+        <div>
+          <h2 id="restore-title" className="text-sm font-semibold">Restore your last session?</h2>
+          <p className="mt-0.5 text-[11px] leading-snug text-text-subtle">
+            This browser still has work from {candidate.age}.
+          </p>
+        </div>
 
-        <div className="rounded-lg bg-alt-bg border border-border px-3 py-2.5 mb-4">
-          <p className="text-sm font-medium truncate" title={describeDocuments(candidate.documentNames)}>
+        {/* Same read-out card the panels use: container radius, raised surface,
+            border, no shadow. */}
+        <div className="rounded-[var(--ui-radius)] bg-alt-bg border border-border p-2">
+          <p className="text-xs font-medium truncate" title={describeDocuments(candidate.documentNames)}>
             {describeDocuments(candidate.documentNames)}
           </p>
-          <p className="text-xs text-text-primary/55 mt-0.5">
+          <p className="mt-0.5 text-[11px] tabular-nums text-text-subtle">
             {candidate.pageCount} page{candidate.pageCount === 1 ? '' : 's'}
             {candidate.totalBytes > 0 && ` · ${formatBytes(candidate.totalBytes)}`}
           </p>
         </div>
 
-        <p className="text-xs text-text-primary/60 leading-snug mb-4">
-          The file and your edits were saved in this browser so a crash or a refresh would
-          not lose them. They were never uploaded — there is nowhere for this app to upload
-          them to. Discard removes the saved copy now.
-        </p>
+        {/* Neutral scope, stated before the choice rather than after it: what
+            was kept, where it went, and what Discard does. */}
+        <Callout tone="info" title="This was saved on this device">
+          The file and your edits were written to this browser so a crash or a refresh
+          would not lose them. They were never uploaded — there is nowhere for this app
+          to upload them to. Discard removes the saved copy now.
+        </Callout>
 
         {problem && (
-          <p role="alert" className="text-xs text-negative leading-snug mb-3">{problem}</p>
+          <p role="alert" className="text-[11px] leading-snug text-negative">{problem}</p>
         )}
 
-        <div className="flex items-center gap-2">
-          <button
-            autoFocus
-            onClick={handleRestore}
-            disabled={working}
-            className="px-4 py-2 rounded-lg bg-accent-strong text-on-accent text-sm font-medium hover:opacity-90 disabled:opacity-50"
-          >
-            {working ? 'Restoring…' : 'Restore'}
-          </button>
-          <button
-            onClick={handleDiscard}
-            disabled={working}
-            className="px-4 py-2 rounded-lg border border-border text-negative text-sm hover:border-negative disabled:opacity-50"
-          >
+        <div className="flex items-center gap-1.5">
+          {/* Spinner rather than a "Restoring…" label swap: Button.loading keeps
+              the label so the control does not change width mid-run, which is
+              how every other long operation in this app reports itself. */}
+          <Button autoFocus variant="primary" loading={working} onClick={handleRestore}>
+            Restore
+          </Button>
+          {/* Destroys the saved copy, so it is a danger Button. */}
+          <Button variant="danger" disabled={working} onClick={handleDiscard}>
             Discard
-          </button>
-          <button
-            onClick={close}
-            disabled={working}
-            className="ml-auto text-xs text-text-primary/55 hover:text-text-primary underline disabled:opacity-50"
-          >
+          </Button>
+          {/* Decides nothing and destroys nothing — the low-stakes option. */}
+          <Button variant="ghost" className="ml-auto" disabled={working} onClick={close}>
             Decide later
-          </button>
+          </Button>
         </div>
 
-        <div className="mt-5 pt-4 border-t border-border">
+        <div className="border-t border-border pt-3">
           <StoredDataControls />
         </div>
       </div>
@@ -271,25 +273,27 @@ export function StoredDataControls() {
     setReload(n => n + 1)
   }, [])
 
+  // A browser that refuses storage is a real limitation with a real
+  // consequence, so it gets the same treatment every other one in the app does
+  // rather than a quiet grey sentence.
   if (summary && !summary.available) {
     return (
-      <p className="text-[11px] text-text-primary/55 leading-snug">
-        This browser is not letting the app store anything, so nothing is saved on this
-        device — and your work will be lost if you refresh.
-      </p>
+      <Callout tone="warning" title="This browser is not letting the app store anything">
+        Nothing is saved on this device, and your work will be lost if you refresh.
+      </Callout>
     )
   }
 
   const nothingStored = summary != null && summary.sessions === 0
 
   return (
-    <div className="space-y-2">
-      <p className="text-[11px] text-text-primary/55 leading-snug">
+    <div className="space-y-1.5">
+      <p className="text-[11px] leading-snug text-text-subtle">
         Saved on this device only. Nothing is uploaded, and there is no account or server
         behind this app.
       </p>
 
-      <p className="text-[11px] text-text-primary/70" aria-live="polite">
+      <p className="text-[11px] tabular-nums text-text-muted" aria-live="polite">
         {summary == null
           ? 'Checking local storage…'
           : nothingStored
@@ -299,29 +303,20 @@ export function StoredDataControls() {
 
       {!nothingStored && summary != null && (
         confirming ? (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={clear}
-              disabled={clearing}
-              className="px-2.5 py-1 rounded-lg bg-negative text-title-bg text-[11px] font-medium hover:opacity-90 disabled:opacity-50"
-            >
-              {clearing ? 'Deleting…' : 'Delete permanently'}
-            </button>
-            <button
-              onClick={() => setConfirming(false)}
-              disabled={clearing}
-              className="px-2.5 py-1 rounded-lg border border-border text-[11px] hover:border-accent disabled:opacity-50"
-            >
+          <div className="flex items-center gap-1.5">
+            <Button variant="danger" size="sm" loading={clearing} onClick={clear}>
+              Delete permanently
+            </Button>
+            <Button variant="secondary" size="sm" disabled={clearing} onClick={() => setConfirming(false)}>
               Cancel
-            </button>
+            </Button>
           </div>
         ) : (
-          <button
-            onClick={() => setConfirming(true)}
-            className="text-[11px] text-negative underline hover:opacity-80"
-          >
+          // Was an underlined link. It destroys every saved session on the
+          // device, which is exactly what the danger variant is for.
+          <Button variant="danger" size="sm" full onClick={() => setConfirming(true)}>
             Delete everything stored on this device
-          </button>
+          </Button>
         )
       )}
     </div>

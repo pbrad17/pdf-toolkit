@@ -19,6 +19,21 @@ export function useSearch(pages) {
   /** Guards against an older, slower query overwriting a newer one's results. */
   const runIdRef = useRef(0)
 
+  /**
+   * Pages whose rects have already been requested.
+   *
+   * Tracked in a ref rather than read back from `rectsByPage`, so `resolveRects`
+   * does not change identity every time a page resolves. When it depended on
+   * `rectsByPage`, resolving one page produced a new callback, which invalidated
+   * the caller's effect, which called it again — safe only because of an
+   * early-return guard. Dropping the dependency removes the cycle instead of
+   * relying on something downstream to break it.
+   *
+   * Cleared wherever the result set is, or a new search would find every page
+   * already marked as requested and never draw a highlight.
+   */
+  const requestedRef = useRef(new Set())
+
   const run = useCallback(async (nextQuery, nextOptions) => {
     const q = nextQuery ?? query
     const opts = nextOptions ?? options
@@ -28,6 +43,7 @@ export function useSearch(pages) {
       setMatches([])
       setActiveIndex(-1)
       setRectsByPage({})
+      requestedRef.current = new Set()
       setSearching(false)
       return
     }
@@ -39,6 +55,7 @@ export function useSearch(pages) {
     setMatches(found)
     setActiveIndex(found.length > 0 ? 0 : -1)
     setRectsByPage({})
+    requestedRef.current = new Set()
     setSearching(false)
   }, [pages, query, options])
 
@@ -55,6 +72,7 @@ export function useSearch(pages) {
     setMatches([])
     setActiveIndex(-1)
     setRectsByPage({})
+    requestedRef.current = new Set()
   }, [])
 
   const next = useCallback(() => {
@@ -76,8 +94,9 @@ export function useSearch(pages) {
 
   /** Resolve highlight rects for pages that just became visible. */
   const resolveRects = useCallback(async (visiblePageIds) => {
-    const pending = visiblePageIds.filter(id => matchesByPage[id] && !rectsByPage[id])
+    const pending = visiblePageIds.filter(id => matchesByPage[id] && !requestedRef.current.has(id))
     if (pending.length === 0) return
+    pending.forEach(id => requestedRef.current.add(id))
 
     const resolved = {}
     for (const pageId of pending) {
@@ -90,7 +109,7 @@ export function useSearch(pages) {
       }
     }
     setRectsByPage(prev => ({ ...prev, ...resolved }))
-  }, [matchesByPage, rectsByPage, pages])
+  }, [matchesByPage, pages])
 
   const activeMatch = activeIndex >= 0 ? matches[activeIndex] : null
 

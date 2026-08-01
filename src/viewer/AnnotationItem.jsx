@@ -21,6 +21,19 @@ const CURSORS = {
 const ASPECT_LOCKED = new Set(['signature', 'image'])
 
 /**
+ * Selection colour, on paper.
+ *
+ * Selection chrome is drawn over the page, which is white in both themes, so it
+ * cannot use the accent that the rest of the UI uses: `--theme-accent` is
+ * #F9AC2A on dark and reaches only 1.92:1 against paper, well under the 3:1 a
+ * non-text indicator needs. `--theme-accent-soft-border` is the one accent token
+ * that clears 3:1 on white at both ends of the ramp — 4.23:1 light, 3.76:1 dark
+ * — so it is what selection is drawn in here. Still amber, still the same family
+ * as the selected state in the chrome; it just survives the theme flip.
+ */
+const SELECT_RING = 'ring-accent-soft-border'
+
+/**
  * A single annotation rendered over the page, with drag-to-move and
  * eight-handle resize.
  *
@@ -103,15 +116,19 @@ export default function AnnotationItem({ annotation: ann, page, pageWidth, pageH
     endInteraction(drag.mode === 'move' ? 'Move annotation' : 'Resize annotation')
   }, [endInteraction])
 
+  // Opacity belongs to the annotation, not to the selection chrome drawn around
+  // it. Applied to the wrapper it also faded the ring and the handles, so a
+  // highlight at its default 0.4 got a 40% selection outline and handles that
+  // were hard to see against the mark they were resizing. It is applied to the
+  // body instead; nothing else about the annotation changes.
   const commonStyle = {
     left, top, width,
     height: ann.type === 'note' ? undefined : height,
-    opacity: ann.opacity ?? 1,
   }
 
   return (
     <div
-      className={`absolute ${selected ? 'ring-2 ring-accent' : ''}`}
+      className={`absolute ${selected ? `ring-1 ${SELECT_RING}` : ''}`}
       style={commonStyle}
       onPointerDown={(e) => startGesture(e, 'move')}
       onPointerMove={onPointerMove}
@@ -124,25 +141,34 @@ export default function AnnotationItem({ annotation: ann, page, pageWidth, pageH
         if (e.key === 'Delete' || e.key === 'Backspace') removeAnnotation(page.id, ann.id)
       }}
     >
-      <AnnotationBody ann={ann} width={width} pageWidth={pageWidth} />
+      <AnnotationBody ann={ann} width={width} pageWidth={pageWidth} opacity={ann.opacity ?? 1} />
 
       {selected && HANDLES.map(([name, fx, fy]) => (
+        // The hit target is the 16px box; the mark inside it is 8px. A square
+        // reads as a resize grip rather than a dot, and the white rim is what
+        // keeps it visible when the annotation sits over dark page content —
+        // the amber alone would disappear into a photograph.
+        //
+        // Both boxes are centred on the same point the 10px handle used, so the
+        // grab point has not moved; only the target around it got bigger.
         <div
           key={name}
-          className="absolute w-2.5 h-2.5 -ml-[5px] -mt-[5px] rounded-full bg-accent-strong border border-white shadow"
+          className="absolute w-4 h-4 -ml-2 -mt-2 flex items-center justify-center"
           style={{ left: `${fx * 100}%`, top: `${fy * 100}%`, cursor: CURSORS[name] }}
           onPointerDown={(e) => startGesture(e, 'resize', name)}
           onPointerMove={onPointerMove}
           onPointerUp={endGesture}
           onPointerCancel={endGesture}
-        />
+        >
+          <span className="block w-2 h-2 bg-accent-soft-border ring-1 ring-white shadow-[var(--theme-shadow-sm)]" />
+        </div>
       ))}
     </div>
   )
 }
 
 /** Visual for each annotation type. Kept separate so gestures stay readable. */
-function AnnotationBody({ ann, width, pageWidth }) {
+function AnnotationBody({ ann, width, pageWidth, opacity = 1 }) {
   switch (ann.type) {
     case 'text': {
       const spans = getSpans(ann)
@@ -150,6 +176,7 @@ function AnnotationBody({ ann, width, pageWidth }) {
         <div
           className="w-full h-full overflow-hidden whitespace-pre-wrap break-words leading-tight"
           style={{
+            opacity,
             // fontSize is stored in points; the page renders at pageWidth px
             // for a page of ann.pageWidthPt points, so scale accordingly.
             fontSize: (ann.fontSize || 14) * (pageWidth / (ann.refWidthPt || pageWidth)),
@@ -175,18 +202,18 @@ function AnnotationBody({ ann, width, pageWidth }) {
 
     case 'signature':
     case 'image':
-      return <img src={ann.dataUrl} alt="" className="w-full h-full object-contain pointer-events-none" draggable={false} />
+      return <img src={ann.dataUrl} alt="" style={{ opacity }} className="w-full h-full object-contain pointer-events-none" draggable={false} />
 
     case 'stamp':
       return (
-        <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none">
+        <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style={{ opacity }} className="pointer-events-none">
           {getShapeSvgElements(ann.shape, ann.strokeColor, ann.strokeWidth, ann.fillColor, ann.flipped)}
         </svg>
       )
 
     case 'draw':
       return (
-        <svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none" className="pointer-events-none overflow-visible">
+        <svg width="100%" height="100%" viewBox="0 0 1 1" preserveAspectRatio="none" style={{ opacity }} className="pointer-events-none overflow-visible">
           <polyline
             points={(ann.points || []).map(p => `${p.x},${p.y}`).join(' ')}
             fill="none"
@@ -201,22 +228,28 @@ function AnnotationBody({ ann, width, pageWidth }) {
 
     case 'redact':
       return (
-        <div className="w-full h-full bg-black relative">
-          {/* Marked, not yet removed — removal happens at export. Labelling it
-              avoids implying the content is already gone. */}
-          <span className="absolute inset-0 flex items-center justify-center text-[9px] text-white/70 select-none">
+        // Deliberately the loudest thing on the page. Solid black at full
+        // opacity, because on export this content is destroyed and not
+        // recoverable — a translucent or tinted treatment would read as a
+        // reversible mark. The label is full white rather than 70%, and large
+        // enough to survive compact density, because "marked, not yet removed"
+        // is the one thing the box itself cannot say. overflow-hidden keeps the
+        // label from spilling onto the page when the box is smaller than the
+        // word; the black bar alone is unambiguous at that size.
+        <div className="w-full h-full bg-black relative overflow-hidden">
+          <span className="absolute inset-0 flex items-center justify-center whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.12em] text-white select-none">
             REDACT
           </span>
         </div>
       )
 
     case 'highlight':
-      return <div className="w-full h-full" style={{ background: ann.color || '#FFFF00' }} />
+      return <div className="w-full h-full" style={{ opacity, background: ann.color || '#FFFF00' }} />
 
     case 'note':
       return (
-        <div className="flex items-start gap-1">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill={ann.color || '#FFF176'} stroke="rgba(0,0,0,.35)" strokeWidth="1.5">
+        <div className="flex items-start gap-1" style={{ opacity }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill={ann.color || '#FFF176'} stroke="rgba(0,0,0,.35)" strokeWidth="1.8">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
         </div>

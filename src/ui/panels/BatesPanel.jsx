@@ -4,16 +4,12 @@ import {
   BATES_POSITIONS, MAX_BATES_DIGITS, createBates, formatBatesNumber,
 } from '../../export/bates'
 import { MAX_MARGIN, STAMP_FONTS, unsupportedCharacters } from '../../export/pageStamp'
-
-const inputClass = 'w-full px-2 py-1.5 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent'
-const captionClass = 'text-[11px] text-text-primary/50 leading-snug'
-
-const Field = ({ label, children }) => (
-  <label className="block">
-    <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">{label}</span>
-    {children}
-  </label>
-)
+import { plural } from './panelFormat'
+import {
+  Button, Callout, Field, NumberInput, Panel, Radio, SectionHeading, Select,
+  Slider, TextInput,
+} from '../primitives'
+import { ColorInput, Note, Problem, Summary } from './panelParts'
 
 const ALIGN_CLASS = { left: 'text-left', center: 'text-center', right: 'text-right' }
 
@@ -21,8 +17,6 @@ const clampInt = (value, min, max) => {
   const n = Math.floor(Number(value))
   return Math.min(Math.max(Number.isFinite(n) ? n : min, min), max)
 }
-
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 /**
  * Bates numbering.
@@ -107,12 +101,12 @@ export default function BatesPanel() {
             aria-pressed={active}
             aria-label={pos.label}
             title={pos.label}
-            className={`min-w-0 px-1 py-1.5 border-r border-border last:border-r-0 ${
+            className={`min-w-0 px-1 py-1.5 border-r border-border last:border-r-0 transition-colors ${
               underline ? 'border-b' : ''
-            } ${ALIGN_CLASS[pos.align]} ${active ? 'bg-accent/10' : 'hover:bg-alt-bg'}`}
+            } ${ALIGN_CLASS[pos.align]} ${active ? 'bg-accent-soft' : 'hover:bg-section-bg'}`}
           >
-            <span className={`block text-[10px] font-mono truncate ${
-              active ? 'text-accent' : 'text-text-primary/30'
+            <span className={`block truncate font-mono text-[11px] ${
+              active ? 'text-accent' : 'text-text-subtle'
             }`}>
               {active ? firstStamp : '—'}
             </span>
@@ -123,225 +117,196 @@ export default function BatesPanel() {
   )
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Bates numbering</h3>
+    <Panel title="Bates numbering">
+      <Note>
+        Stamps a continuous sequence across the saved document, one number per
+        page, in the order the pages are saved in. Numbering is applied when you
+        save, so reordering or deleting pages first will not leave gaps.
+      </Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Stamps a continuous sequence across the saved document, one number per
-          page, in the order the pages are saved in. Numbering is applied when you
-          save, so reordering or deleting pages first will not leave gaps.
-        </p>
+      <Summary label="Stamp">
+        {/* text-xs is Summary's value step. The old text-sm was the only 14px
+            in the chrome and made this readout a size no other panel uses. */}
+        <p className="font-mono text-xs text-text-primary break-all">{firstStamp}</p>
+        <Note>
+          {numberedCount === 0
+            ? 'No pages will be numbered.'
+            : `${plural(numberedCount, 'page')} — ${firstStamp} through ${lastStamp}.`}
+        </Note>
+      </Summary>
 
-        <div className="rounded-lg bg-alt-bg border border-border p-2 space-y-1">
-          <p className="text-[11px] text-text-primary/50 uppercase tracking-wide">Stamp</p>
-          <p className="text-base font-mono break-all">{firstStamp}</p>
-          <p className={captionClass}>
-            {numberedCount === 0
-              ? 'No pages will be numbered.'
-              : `${plural(numberedCount, 'page')} — ${firstStamp} through ${lastStamp}.`}
-          </p>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Prefix" htmlFor="bates-prefix">
+          <TextInput
+            id="bates-prefix"
+            value={config.prefix}
+            placeholder="ABC-"
+            spellCheck={false}
+            onChange={(e) => patchLive({ prefix: e.target.value })}
+            {...bracket(config.prefix, 'Change Bates prefix')}
+          />
+        </Field>
+        <Field label="Suffix" htmlFor="bates-suffix">
+          <TextInput
+            id="bates-suffix"
+            value={config.suffix}
+            placeholder="-A"
+            spellCheck={false}
+            onChange={(e) => patchLive({ suffix: e.target.value })}
+            {...bracket(config.suffix, 'Change Bates suffix')}
+          />
+        </Field>
+      </div>
+
+      {unsupported.length > 0 && (
+        <Problem role="alert">
+          {unsupported.join(' ')} cannot be drawn by the standard PDF fonts and
+          will be left out of every number. Use Western European characters only.
+        </Problem>
+      )}
+
+      <Field label="Start at" htmlFor="bates-start">
+        <NumberInput
+          id="bates-start"
+          min="0"
+          value={config.start}
+          onChange={(e) => patchLive({ start: clampInt(e.target.value, 0, 999_999_999) })}
+          {...bracket(config.start, 'Change Bates start number')}
+        />
+      </Field>
+
+      <Field label="Digits" htmlFor="bates-digits" value={config.digits}>
+        <Slider
+          id="bates-digits" min="1" max={MAX_BATES_DIGITS} step="1"
+          value={config.digits}
+          onChange={(e) => patchLive({ digits: +e.target.value })}
+          {...bracket(config.digits, 'Change Bates digits')}
+        />
+      </Field>
+
+      <Field label="Position">
+        <div
+          role="group"
+          aria-label="Bates number position"
+          className="overflow-hidden rounded-[var(--ui-radius)] border border-border"
+        >
+          {positionRow(BATES_POSITIONS.slice(0, 3), true)}
+          <div className="h-8 bg-alt-bg border-b border-border" aria-hidden="true" />
+          {positionRow(BATES_POSITIONS.slice(3), false)}
+        </div>
+      </Field>
+
+      <div className="space-y-3 border-t border-border pt-3">
+        <SectionHeading>Appearance</SectionHeading>
+
+        <Field label="Font" htmlFor="bates-font">
+          <Select
+            id="bates-font"
+            value={config.fontFamily}
+            onChange={(e) => patch({ fontFamily: e.target.value }, 'Change Bates font')}
+          >
+            {STAMP_FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+          </Select>
+        </Field>
+
+        <Field label="Size" htmlFor="bates-size" value={`${config.fontSize}pt`}>
+          <Slider
+            id="bates-size" min="6" max="24" step="1"
+            value={config.fontSize}
+            onChange={(e) => patchLive({ fontSize: +e.target.value })}
+            {...bracket(config.fontSize, 'Change Bates size')}
+          />
+        </Field>
+
+        <Field label="Colour" htmlFor="bates-colour">
+          <ColorInput
+            id="bates-colour"
+            value={config.color}
+            onChange={(e) => patchLive({ color: e.target.value })}
+            {...bracket(config.color, 'Change Bates colour')}
+          />
+        </Field>
+
+        <Field label="Side margin" htmlFor="bates-margin-x" value={`${config.marginX}pt`}>
+          <Slider
+            id="bates-margin-x" min="0" max={MAX_MARGIN} step="1"
+            value={config.marginX}
+            onChange={(e) => patchLive({ marginX: +e.target.value })}
+            {...bracket(config.marginX, 'Change Bates margin')}
+          />
+        </Field>
+
+        <Field label="Top and bottom margin" htmlFor="bates-margin-y" value={`${config.marginY}pt`}>
+          <Slider
+            id="bates-margin-y" min="0" max={MAX_MARGIN} step="1"
+            value={config.marginY}
+            onChange={(e) => patchLive({ marginY: +e.target.value })}
+            {...bracket(config.marginY, 'Change Bates margin')}
+          />
+        </Field>
+
+        <Note>
+          The number is held clear of the paper edge whatever the margin, and
+          shrunk to fit if the page is too narrow for it — a Bates number that
+          runs off the paper cannot be cited.
+        </Note>
+      </div>
+
+      <div className="space-y-3 border-t border-border pt-3">
+        <SectionHeading>Pages</SectionHeading>
+
+        <div className="space-y-1.5" role="radiogroup" aria-label="Pages to number">
+          <Radio
+            name="bates-scope"
+            label="Every page"
+            hint={plural(pageCount, 'page')}
+            checked={scopedIds == null}
+            onChange={() => patch({ scope: { mode: 'all' } }, 'Number every page')}
+          />
+          <Radio
+            name="bates-scope"
+            label="Only the pages I selected"
+            hint={hasSelection ? plural(targetPageIds.length, 'page') : 'select pages first'}
+            checked={scopedIds != null}
+            disabled={!hasSelection && scopedIds == null}
+            onChange={() => patch({ scope: { mode: 'pages', pageIds: [...targetPageIds] } }, 'Number selected pages')}
+          />
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Prefix">
-            <input
-              type="text"
-              value={config.prefix}
-              placeholder="ABC-"
-              spellCheck={false}
-              onChange={(e) => patchLive({ prefix: e.target.value })}
-              {...bracket(config.prefix, 'Change Bates prefix')}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Suffix">
-            <input
-              type="text"
-              value={config.suffix}
-              placeholder="-A"
-              spellCheck={false}
-              onChange={(e) => patchLive({ suffix: e.target.value })}
-              {...bracket(config.suffix, 'Change Bates suffix')}
-              className={inputClass}
-            />
-          </Field>
-        </div>
-
-        {unsupported.length > 0 && (
-          <p role="alert" className="text-[11px] text-negative leading-snug">
-            {unsupported.join(' ')} cannot be drawn by the standard PDF fonts and will
-            be left out of every number. Use Western European characters only.
-          </p>
+        {selectionDiffers && hasSelection && (
+          <Button
+            full
+            size="sm"
+            onClick={() => patch({ scope: { mode: 'pages', pageIds: [...targetPageIds] } }, 'Update Bates pages')}
+          >
+            Use the current selection ({plural(targetPageIds.length, 'page')})
+          </Button>
         )}
 
-        <Field label="Start at">
-          <input
-            type="number"
-            min="0"
-            value={config.start}
-            onChange={(e) => patchLive({ start: clampInt(e.target.value, 0, 999_999_999) })}
-            {...bracket(config.start, 'Change Bates start number')}
-            className={inputClass}
-          />
-        </Field>
+        {missing > 0 && (
+          <Note>
+            {plural(missing, 'page')} chosen earlier {missing === 1 ? 'is' : 'are'} no
+            longer in the document and {missing === 1 ? 'has' : 'have'} been dropped
+            from the run.
+          </Note>
+        )}
 
-        <Field label={`Digits — ${config.digits}`}>
-          <input
-            type="range" min="1" max={MAX_BATES_DIGITS} step="1"
-            value={config.digits}
-            onChange={(e) => patchLive({ digits: +e.target.value })}
-            {...bracket(config.digits, 'Change Bates digits')}
-            className="w-full"
-          />
-        </Field>
-
-        <div>
-          <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">
-            Position
-          </span>
-          <div
-            role="group"
-            aria-label="Bates number position"
-            className="rounded-lg border border-border overflow-hidden"
-          >
-            {positionRow(BATES_POSITIONS.slice(0, 3), true)}
-            <div className="h-8 bg-alt-bg border-b border-border" aria-hidden="true" />
-            {positionRow(BATES_POSITIONS.slice(3), false)}
-          </div>
-        </div>
-
-        <div className="pt-4 border-t border-border space-y-4">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-accent">Appearance</h4>
-
-          <Field label="Font">
-            <select
-              value={config.fontFamily}
-              onChange={(e) => patch({ fontFamily: e.target.value }, 'Change Bates font')}
-              className={inputClass}
-            >
-              {STAMP_FONTS.map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
-          </Field>
-
-          <Field label={`Size — ${config.fontSize}pt`}>
-            <input
-              type="range" min="6" max="24" step="1"
-              value={config.fontSize}
-              onChange={(e) => patchLive({ fontSize: +e.target.value })}
-              {...bracket(config.fontSize, 'Change Bates size')}
-              className="w-full"
-            />
-          </Field>
-
-          <Field label="Colour">
-            <input
-              type="color"
-              value={config.color}
-              onChange={(e) => patchLive({ color: e.target.value })}
-              {...bracket(config.color, 'Change Bates colour')}
-              className="w-full h-8 rounded-lg bg-alt-bg border border-border cursor-pointer"
-            />
-          </Field>
-
-          <Field label={`Side margin — ${config.marginX}pt`}>
-            <input
-              type="range" min="0" max={MAX_MARGIN} step="1"
-              value={config.marginX}
-              onChange={(e) => patchLive({ marginX: +e.target.value })}
-              {...bracket(config.marginX, 'Change Bates margin')}
-              className="w-full"
-            />
-          </Field>
-
-          <Field label={`Top and bottom margin — ${config.marginY}pt`}>
-            <input
-              type="range" min="0" max={MAX_MARGIN} step="1"
-              value={config.marginY}
-              onChange={(e) => patchLive({ marginY: +e.target.value })}
-              {...bracket(config.marginY, 'Change Bates margin')}
-              className="w-full"
-            />
-          </Field>
-
-          <p className={captionClass}>
-            The number is held clear of the paper edge whatever the margin, and
-            shrunk to fit if the page is too narrow for it — a Bates number that
-            runs off the paper cannot be cited.
-          </p>
-        </div>
-
-        <div className="pt-4 border-t border-border space-y-3">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-accent">Pages</h4>
-
-          <div className="space-y-1.5">
-            <label className="flex items-start gap-2 text-xs cursor-pointer">
-              <input
-                type="radio"
-                name="bates-scope"
-                checked={scopedIds == null}
-                onChange={() => patch({ scope: { mode: 'all' } }, 'Number every page')}
-                className="mt-0.5"
-              />
-              <span>
-                Every page
-                <span className="block text-text-primary/50">{plural(pageCount, 'page')}</span>
-              </span>
-            </label>
-            <label className={`flex items-start gap-2 text-xs ${hasSelection ? 'cursor-pointer' : 'opacity-50'}`}>
-              <input
-                type="radio"
-                name="bates-scope"
-                checked={scopedIds != null}
-                disabled={!hasSelection && scopedIds == null}
-                onChange={() => patch({ scope: { mode: 'pages', pageIds: [...targetPageIds] } }, 'Number selected pages')}
-                className="mt-0.5"
-              />
-              <span>
-                Only the pages I selected
-                <span className="block text-text-primary/50">
-                  {hasSelection ? plural(targetPageIds.length, 'page') : 'select pages first'}
-                </span>
-              </span>
-            </label>
-          </div>
-
-          {selectionDiffers && hasSelection && (
-            <button
-              type="button"
-              onClick={() => patch({ scope: { mode: 'pages', pageIds: [...targetPageIds] } }, 'Update Bates pages')}
-              className="w-full px-2 py-1.5 rounded-lg border border-border text-[11px] hover:border-accent"
-            >
-              Use the current selection ({plural(targetPageIds.length, 'page')})
-            </button>
-          )}
-
-          {missing > 0 && (
-            <p className={captionClass}>
-              {plural(missing, 'page')} chosen earlier {missing === 1 ? 'is' : 'are'} no
-              longer in the document and {missing === 1 ? 'has' : 'have'} been dropped
-              from the run.
-            </p>
-          )}
-
-          {unnumbered > 0 && (
-            <p role="alert" className="text-[11px] text-negative leading-snug">
-              {plural(unnumbered, 'page')} will be saved with no Bates number. In a
-              production every page normally carries one.
-            </p>
-          )}
-        </div>
-
-        {saved && (
-          <button
-            type="button"
-            onClick={() => commit('Remove Bates numbering', draft => { draft.doc.bates = null })}
-            className="w-full px-2 py-1.5 rounded-lg border border-border text-xs text-negative hover:border-negative"
-          >
-            Remove Bates numbering
-          </button>
+        {unnumbered > 0 && (
+          <Callout tone="warning" title={`${plural(unnumbered, 'page')} will be saved with no Bates number`}>
+            In a production every page normally carries one.
+          </Callout>
         )}
       </div>
-    </div>
+
+      {saved && (
+        <Button
+          variant="danger"
+          full
+          onClick={() => commit('Remove Bates numbering', draft => { draft.doc.bates = null })}
+        >
+          Remove Bates numbering
+        </Button>
+      )}
+    </Panel>
   )
 }

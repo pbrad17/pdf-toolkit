@@ -5,8 +5,12 @@ import {
   MAX_PAGE_PT, MIN_PAGE_PT, PAGE_PRESETS, PT_PER_INCH, PT_PER_MM,
   RESIZE_MODES, orientSize,
 } from '../../export/resize'
+import { plural } from './panelFormat'
+import {
+  Button, Callout, Field, NumberInput, Panel, Radio, SectionHeading, Select,
+} from '../primitives'
+import { ChoiceButton, Note, Summary } from './panelParts'
 
-const inputClass = 'w-full px-2 py-1.5 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent'
 const UNITS = [
   { id: 'pt', label: 'points', per: 1, decimals: 1 },
   { id: 'in', label: 'inches', per: PT_PER_INCH, decimals: 2 },
@@ -96,174 +100,139 @@ export default function ResizePanel() {
     p.resize.width === resized[0].resize.width && p.resize.height === resized[0].resize.height
   ))
   const scope = selectedPageIds.size > 0
-    ? `${pages.length} selected page${pages.length === 1 ? '' : 's'}`
-    : `all ${pages.length} page${pages.length === 1 ? '' : 's'}`
+    ? `${plural(pages.length, 'selected page')}`
+    : `all ${plural(pages.length, 'page')}`
 
   const dimensionField = (field, label) => (
     <div className="flex-1">
-      <label htmlFor={`resize-${field}`} className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">
-        {label}
-      </label>
-      <input
-        id={`resize-${field}`}
-        type="number"
-        min={formatIn(MIN_PAGE_PT, unit)}
-        max={formatIn(MAX_PAGE_PT, unit)}
-        step={unit.id === 'pt' ? 1 : 0.1}
-        value={typing?.field === field ? typing.text : formatIn(custom[field], unit)}
-        onFocus={() => setTyping({ field, text: formatIn(custom[field], unit) })}
-        onChange={(e) => setDimension(field, e.target.value)}
-        onBlur={() => setTyping(null)}
-        className={`${inputClass} tabular-nums`}
-      />
+      <Field label={label} htmlFor={`resize-${field}`}>
+        <NumberInput
+          id={`resize-${field}`}
+          min={formatIn(MIN_PAGE_PT, unit)}
+          max={formatIn(MAX_PAGE_PT, unit)}
+          step={unit.id === 'pt' ? 1 : 0.1}
+          value={typing?.field === field ? typing.text : formatIn(custom[field], unit)}
+          onFocus={() => setTyping({ field, text: formatIn(custom[field], unit) })}
+          onChange={(e) => setDimension(field, e.target.value)}
+          onBlur={() => setTyping(null)}
+        />
+      </Field>
     </div>
   )
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Resize</h3>
+    <Panel title="Resize">
+      <Note>
+        Changes the paper size of a page. The content is either scaled to fit or
+        left at its own size and centred.
+      </Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Changes the paper size of a page. The content is either scaled to fit or
-          left at its own size and centred.
-        </p>
+      <Summary label="Applies to" value={scope}>
+        {current && (
+          <Note className="tabular-nums">
+            Page {state.pages.indexOf(reference) + 1} is currently{' '}
+            {Math.round(current.width)} × {Math.round(current.height)} pt
+          </Note>
+        )}
+      </Summary>
 
-        <div className="rounded-lg bg-alt-bg border border-border p-2">
-          <p className="text-[11px] text-text-primary/50 uppercase tracking-wide mb-1">Applies to</p>
-          <p className="text-xs">{scope}</p>
-          {current && (
-            <p className="text-[11px] text-text-primary/50 tabular-nums mt-1">
-              Page {state.pages.indexOf(reference) + 1} is currently{' '}
-              {Math.round(current.width)} × {Math.round(current.height)} pt
-            </p>
-          )}
+      <Field label="Page size" htmlFor="resize-preset">
+        <Select id="resize-preset" value={presetId} onChange={(e) => setPresetId(e.target.value)}>
+          {PAGE_PRESETS.map(p => (
+            <option key={p.id} value={p.id}>{p.label} — {p.note}</option>
+          ))}
+          <option value="custom">Custom</option>
+        </Select>
+      </Field>
+
+      {!preset && (
+        <>
+          <Field label="Units" htmlFor="resize-unit">
+            <Select
+              id="resize-unit"
+              value={unitId}
+              onChange={(e) => { setTyping(null); setUnitId(e.target.value) }}
+            >
+              {UNITS.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
+            </Select>
+          </Field>
+          <div className="flex gap-1.5">
+            {dimensionField('width', 'Width')}
+            {dimensionField('height', 'Height')}
+          </div>
+        </>
+      )}
+
+      <Field label="Orientation">
+        <div className="flex gap-1.5" role="group" aria-label="Orientation">
+          {['portrait', 'landscape'].map(value => (
+            <ChoiceButton
+              key={value}
+              selected={orientation === value}
+              onClick={() => setOrientation(value)}
+              className="flex-1 capitalize"
+            >
+              {value}
+            </ChoiceButton>
+          ))}
         </div>
+      </Field>
 
-        <div>
-          <label htmlFor="resize-preset" className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">
-            Page size
-          </label>
-          <select
-            id="resize-preset"
-            value={presetId}
-            onChange={(e) => setPresetId(e.target.value)}
-            className={inputClass}
+      <Field label="Content">
+        <div className="space-y-1.5" role="radiogroup" aria-label="How to fit the content">
+          {RESIZE_MODES.map(option => (
+            <Radio
+              key={option.id}
+              name="resize-mode"
+              label={option.label}
+              hint={option.note}
+              checked={mode === option.id}
+              onChange={() => setMode(option.id)}
+            />
+          ))}
+        </div>
+      </Field>
+
+      <Summary
+        label="New size"
+        value={`${Math.round(size.width)} × ${Math.round(size.height)} pt`}
+      >
+        <Note className="tabular-nums">
+          {(size.width / PT_PER_INCH).toFixed(2)} × {(size.height / PT_PER_INCH).toFixed(2)} in
+          {' · '}
+          {Math.round(size.width / PT_PER_MM)} × {Math.round(size.height / PT_PER_MM)} mm
+        </Note>
+      </Summary>
+
+      <Callout tone="info" title="The new size is written when you save">
+        The viewer still shows each page at its original size.
+      </Callout>
+
+      <Button
+        variant="primary"
+        full
+        disabled={pages.length === 0}
+        title={pages.length === 0 ? 'No pages in scope' : undefined}
+        onClick={apply}
+      >
+        Resize {scope}
+      </Button>
+
+      {resized.length > 0 && (
+        <div className="space-y-1.5 border-t border-border pt-3">
+          <SectionHeading
+            action={<Button variant="danger" size="sm" onClick={clear}>Remove</Button>}
           >
-            {PAGE_PRESETS.map(p => (
-              <option key={p.id} value={p.id}>{p.label} — {p.note}</option>
-            ))}
-            <option value="custom">Custom</option>
-          </select>
-        </div>
-
-        {!preset && (
-          <>
-            <div>
-              <label htmlFor="resize-unit" className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">
-                Units
-              </label>
-              <select
-                id="resize-unit"
-                value={unitId}
-                onChange={(e) => { setTyping(null); setUnitId(e.target.value) }}
-                className={inputClass}
-              >
-                {UNITS.map(u => <option key={u.id} value={u.id}>{u.label}</option>)}
-              </select>
-            </div>
-            <div className="flex gap-2">
-              {dimensionField('width', 'Width')}
-              {dimensionField('height', 'Height')}
-            </div>
-          </>
-        )}
-
-        <div>
-          <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">Orientation</span>
-          <div className="flex gap-2">
-            {['portrait', 'landscape'].map(value => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setOrientation(value)}
-                aria-pressed={orientation === value}
-                className={`flex-1 py-1.5 text-xs rounded-lg border capitalize ${
-                  orientation === value
-                    ? 'border-accent bg-accent/10 text-accent'
-                    : 'border-border text-text-primary/70 hover:border-accent'
-                }`}
-              >
-                {value}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">Content</span>
-          <div className="space-y-1.5">
-            {RESIZE_MODES.map(option => (
-              <label key={option.id} className="flex items-start gap-2 text-xs cursor-pointer">
-                <input
-                  type="radio"
-                  name="resize-mode"
-                  checked={mode === option.id}
-                  onChange={() => setMode(option.id)}
-                  className="mt-0.5"
-                />
-                <span>
-                  {option.label}
-                  <span className="block text-text-primary/50">{option.note}</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-lg bg-alt-bg border border-border p-2">
-          <p className="text-[11px] text-text-primary/50 uppercase tracking-wide mb-1">New size</p>
-          <p className="text-xs tabular-nums">
-            {Math.round(size.width)} × {Math.round(size.height)} pt
-          </p>
-          <p className="text-[11px] text-text-primary/50 tabular-nums">
-            {(size.width / PT_PER_INCH).toFixed(2)} × {(size.height / PT_PER_INCH).toFixed(2)} in
-            {' · '}
-            {Math.round(size.width / PT_PER_MM)} × {Math.round(size.height / PT_PER_MM)} mm
+            Pending
+          </SectionHeading>
+          <p className="text-xs text-text-primary tabular-nums">
+            {uniformPending
+              ? `${plural(resized.length, 'page')} will be saved at `
+                + `${Math.round(resized[0].resize.width)} × ${Math.round(resized[0].resize.height)} pt`
+              : `${resized.length} pages will be saved at sizes that differ from each other.`}
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={apply}
-          disabled={pages.length === 0}
-          className="w-full px-3 py-2 rounded-lg bg-accent-strong text-on-accent text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Resize {scope}
-        </button>
-
-        <p className="text-[11px] text-text-primary/50 leading-snug">
-          The new size is written when you save. The viewer still shows each page
-          at its original size.
-        </p>
-
-        {resized.length > 0 && (
-          <div className="pt-4 border-t border-border space-y-2">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-accent">Pending</h4>
-              <button type="button" onClick={clear} className="text-[11px] text-negative hover:underline">
-                Remove
-              </button>
-            </div>
-            <p className="text-xs text-text-primary/70 tabular-nums">
-              {uniformPending
-                ? `${resized.length} page${resized.length === 1 ? '' : 's'} will be saved at `
-                  + `${Math.round(resized[0].resize.width)} × ${Math.round(resized[0].resize.height)} pt`
-                : `${resized.length} pages will be saved at sizes that differ from each other.`}
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
+      )}
+    </Panel>
   )
 }

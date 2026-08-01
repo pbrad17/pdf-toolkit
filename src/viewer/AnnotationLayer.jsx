@@ -242,9 +242,15 @@ function PlacementPreview({ preview, tool, options, width, height }) {
       ? options.highlight.color
       : 'transparent'
 
+  // Dashed, because the rectangle does not exist yet — the moment it does it
+  // gets a solid selection ring instead, and the difference is the feedback.
+  //
+  // accent-soft-border rather than accent for the same reason the selection ring
+  // uses it: this line is drawn on white paper in both themes, and the dark
+  // theme's accent is only 1.92:1 there. See AnnotationItem.
   return (
     <div
-      className="absolute pointer-events-none border border-dashed border-accent"
+      className="absolute pointer-events-none border border-dashed border-accent-soft-border"
       style={{ left: x, top: y, width: w, height: h, background: fill, opacity: tool === 'highlight' ? options.highlight.opacity : 1 }}
     />
   )

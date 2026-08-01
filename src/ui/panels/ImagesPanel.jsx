@@ -3,6 +3,8 @@ import { useEditor } from '../../state/useEditor'
 import { redactionMarksFor, renderPageImage, PDF_DPI } from '../../export/rasterize'
 import { formatPageRanges } from '../../utils/pageRanges'
 import { plural } from './panelFormat'
+import { Button, Callout, Field, Panel, Select, Slider } from '../primitives'
+import { Note, Summary } from './panelParts'
 
 const RESOLUTIONS = [1, 2, 3, 4]
 
@@ -15,15 +17,6 @@ const RESOLUTIONS = [1, 2, 3, 4]
  * blob yet. The old tool did both and lost images on long documents.
  */
 const DOWNLOAD_GAP_MS = 350
-
-const Field = ({ label, children }) => (
-  <div>
-    <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">{label}</span>
-    {children}
-  </div>
-)
-
-const inputClass = 'w-full px-2 py-1.5 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent'
 
 const wait = (ms) => new Promise(resolve => { setTimeout(resolve, ms) })
 
@@ -140,119 +133,90 @@ export default function ImagesPanel() {
   }, [exportPages, format, quality, resolution, state, pageNumbers, setBusy, setError])
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">To images</h3>
+    <Panel title="To images">
+      <Note>
+        Saves one image file per page, straight to your downloads folder.
+        Rendering happens in this browser; nothing is uploaded.
+      </Note>
 
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Saves one image file per page, straight to your downloads folder.
-          Rendering happens in this browser; nothing is uploaded.
-        </p>
+      <Field label="Format" htmlFor="images-format">
+        <Select id="images-format" value={format} onChange={(e) => setFormat(e.target.value)}>
+          <option value="png">PNG — lossless, larger</option>
+          <option value="jpeg">JPEG — smaller</option>
+        </Select>
+      </Field>
 
-        {/* Field renders a span, not a label — the same helper wraps control
-            groups in the sibling panels — so each control names itself. */}
-        <Field label="Format">
-          <select
-            value={format}
-            onChange={(e) => setFormat(e.target.value)}
-            aria-label="Image format"
-            className={inputClass}
-          >
-            <option value="png">PNG — lossless, larger</option>
-            <option value="jpeg">JPEG — smaller</option>
-          </select>
+      {format === 'jpeg' && (
+        <Field label="JPEG quality" htmlFor="images-quality" value={`${Math.round(quality * 100)}%`}>
+          <Slider
+            id="images-quality" min="0.5" max="1" step="0.02"
+            value={quality}
+            onChange={(e) => setQuality(Number(e.target.value))}
+          />
         </Field>
+      )}
 
-        {format === 'jpeg' && (
-          <Field label={`JPEG quality — ${Math.round(quality * 100)}%`}>
-            <input
-              type="range"
-              min="0.5"
-              max="1"
-              step="0.02"
-              value={quality}
-              onChange={(e) => setQuality(Number(e.target.value))}
-              aria-label="JPEG quality"
-              className="w-full"
-            />
-          </Field>
-        )}
-
-        <Field label="Resolution">
-          <select
-            value={resolution}
-            onChange={(e) => setResolution(Number(e.target.value))}
-            aria-label="Resolution"
-            className={inputClass}
-          >
-            {RESOLUTIONS.map(r => (
-              <option key={r} value={r}>
-                {r}× — {r * PDF_DPI} dpi
-              </option>
-            ))}
-          </select>
-        </Field>
-
-        {hasSelection && (
-          <Field label="Pages">
-            <select
-              value={scope}
-              onChange={(e) => setScope(e.target.value)}
-              aria-label="Pages to export"
-              className={inputClass}
-            >
-              <option value="selection">Selected — {plural(targetPageIds.length, 'page')}</option>
-              <option value="all">All — {plural(state.pages.length, 'page')}</option>
-            </select>
-          </Field>
-        )}
-
-        <div className="rounded-lg bg-alt-bg border border-border p-2">
-          <p className="text-[11px] text-text-primary/50 uppercase tracking-wide mb-1">Will export</p>
-          <p className="text-xs break-words">
-            {exportPages.length === 0
-              ? 'No pages'
-              : `${plural(exportPages.length, 'image')} — pages ${formatPageRanges(exportPages.map(p => pageNumbers.get(p.id)))}`}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={run}
-          disabled={running || exportPages.length === 0}
-          className="w-full px-3 py-2 rounded-lg bg-accent-strong text-on-accent text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+      <Field label="Resolution" htmlFor="images-resolution">
+        <Select
+          id="images-resolution"
+          value={resolution}
+          onChange={(e) => setResolution(Number(e.target.value))}
         >
-          {running ? `Exporting… ${done} of ${exportPages.length}` : 'Export images'}
-        </button>
+          {RESOLUTIONS.map(r => (
+            <option key={r} value={r}>
+              {r}× — {r * PDF_DPI} dpi
+            </option>
+          ))}
+        </Select>
+      </Field>
 
-        {running && (
-          <button
-            type="button"
-            onClick={() => { cancelRef.current = true }}
-            className="w-full px-3 py-1.5 rounded-lg border border-border text-xs hover:border-accent"
-          >
-            Stop after this page
-          </button>
-        )}
+      {hasSelection && (
+        <Field label="Pages" htmlFor="images-scope">
+          <Select id="images-scope" value={scope} onChange={(e) => setScope(e.target.value)}>
+            <option value="selection">Selected — {plural(targetPageIds.length, 'page')}</option>
+            <option value="all">All — {plural(state.pages.length, 'page')}</option>
+          </Select>
+        </Field>
+      )}
 
-        {!running && done > 0 && (
-          <p role="status" className="text-[11px] text-text-primary/60 leading-snug">
-            {plural(done, 'image')} downloaded.
-          </p>
-        )}
+      <Summary
+        label="Will export"
+        value={exportPages.length === 0
+          ? 'No pages'
+          : `${plural(exportPages.length, 'image')} — pages ${formatPageRanges(exportPages.map(p => pageNumbers.get(p.id)))}`}
+      />
 
-        <p className="text-[11px] text-text-primary/50 leading-snug border-t border-border pt-3">
-          Images show the page as it is in the file you opened, with cropping,
-          rotation and redaction marks applied. Anything added in the editor —
-          comments, text edits, watermarks, headers, Bates numbers — is written
-          when you save the PDF and does not appear here.
-        </p>
+      <Callout tone="warning" title="Images show the page as it is in the file you opened">
+        Cropping, rotation and redaction marks are applied. Anything added in the
+        editor — comments, text edits, watermarks, headers, Bates numbers — is
+        written when you save the PDF and does not appear here.
+      </Callout>
 
-        <p className="text-[11px] text-text-primary/50 leading-snug">
-          Exporting more than one page downloads several files in a row; your
-          browser may ask once whether to allow that.
-        </p>
-      </div>
-    </div>
+      <Button
+        variant="primary"
+        full
+        loading={running}
+        disabled={running || exportPages.length === 0}
+        title={exportPages.length === 0 ? 'No pages in scope' : undefined}
+        onClick={run}
+      >
+        Export images
+      </Button>
+
+      {running && (
+        <Button variant="secondary" full onClick={() => { cancelRef.current = true }}>
+          Stop after this page
+        </Button>
+      )}
+
+      {!running && done > 0 && (
+        <Note role="status">{plural(done, 'image')} downloaded.</Note>
+      )}
+
+      <Note>
+        Exporting more than one page downloads several files in a row; your
+        browser may ask once whether to allow that.
+      </Note>
+    </Panel>
   )
 }

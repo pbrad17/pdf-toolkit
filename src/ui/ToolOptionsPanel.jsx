@@ -1,36 +1,30 @@
 import { useRef, useState } from 'react'
 import { useEditor } from '../state/useEditor'
 import { SHAPES, FILLABLE_SHAPES, FLIPPABLE_SHAPES } from '../utils/shapeDefinitions'
+import {
+  Button, Callout, Checkbox, EmptyState, Field, Icon, Panel, SectionHeading,
+  Select, Slider, Swatches, TextArea,
+} from './primitives'
+import { ChoiceButton, ColorInput, Note, Plate, PlateButton } from './panels/panelParts'
 
 const FONTS = ['Helvetica', 'TimesRoman', 'Courier']
 const HIGHLIGHT_COLORS = ['#FFEB3B', '#8BC34A', '#4FC3F7', '#FF8A80', '#CE93D8']
 const NOTE_COLORS = ['#FFF176', '#FFB74D', '#AED581', '#4FC3F7', '#F48FB1', '#B39DDB']
 
-const Field = ({ label, children }) => (
-  <label className="block">
-    <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">{label}</span>
-    {children}
-  </label>
-)
+const PEN_ICON = 'M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z'
 
-const Swatches = ({ colors, value, onChange }) => (
-  <div className="flex gap-1.5 flex-wrap">
-    {colors.map(c => (
-      <button
-        key={c}
-        onClick={() => onChange(c)}
-        style={{ background: c }}
-        aria-label={`Colour ${c}`}
-        aria-pressed={value === c}
-        className={`w-6 h-6 rounded-md border transition-transform ${
-          value === c ? 'border-accent scale-110' : 'border-border'
-        }`}
-      />
-    ))}
-  </div>
-)
-
-const inputClass = 'w-full px-2 py-1.5 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent'
+/** Panel heading per mode tool. The title used to be an h3 inside the body. */
+const TOOL_TITLES = {
+  select: 'Select',
+  text: 'Text',
+  draw: 'Draw',
+  highlight: 'Highlight',
+  stamp: 'Shapes',
+  note: 'Sticky note',
+  signature: 'Signature',
+  image: 'Image',
+  redact: 'Redact',
+}
 
 /**
  * Right rail showing settings for the active placement tool, plus properties
@@ -52,29 +46,31 @@ export default function ToolOptionsPanel() {
   const selected = pageAnnotations.find(a => a.id === selectedAnnotationId) || null
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <ToolSettings tool={activeTool} options={toolOptions} setOption={setToolOption} signatures={signatures} />
+    <Panel title={TOOL_TITLES[activeTool] ?? 'Tool'}>
+      <ToolSettings tool={activeTool} options={toolOptions} setOption={setToolOption} signatures={signatures} />
 
-        {selected && (
-          <div className="pt-4 border-t border-border space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Selected</h3>
-              <button
+      {selected && (
+        <div className="space-y-3 border-t border-border pt-3">
+          <SectionHeading
+            action={(
+              <Button
+                variant="danger"
+                size="sm"
                 onClick={() => removeAnnotation(currentPageId, selected.id)}
-                className="text-[11px] text-negative hover:underline"
               >
                 Delete
-              </button>
-            </div>
-            <SelectedProperties
-              ann={selected}
-              onChange={(patch, label) => updateAnnotation(currentPageId, selected.id, patch, label)}
-            />
-          </div>
-        )}
-      </div>
-    </div>
+              </Button>
+            )}
+          >
+            Selected
+          </SectionHeading>
+          <SelectedProperties
+            ann={selected}
+            onChange={(patch, label) => updateAnnotation(currentPageId, selected.id, patch, label)}
+          />
+        </div>
+      )}
+    </Panel>
   )
 }
 
@@ -85,106 +81,150 @@ function ToolSettings({ tool, options, setOption, signatures }) {
     case 'text':
       return (
         <>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Text</h3>
-          <Field label="Font">
-            <select value={options.text.fontFamily} onChange={(e) => setOption('text', { fontFamily: e.target.value })} className={inputClass}>
+          <Field label="Font" htmlFor="tool-text-font">
+            <Select
+              id="tool-text-font"
+              value={options.text.fontFamily}
+              onChange={(e) => setOption('text', { fontFamily: e.target.value })}
+            >
               {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
+            </Select>
           </Field>
-          <Field label={`Size — ${options.text.fontSize}pt`}>
-            <input type="range" min="6" max="72" value={options.text.fontSize}
-                   onChange={(e) => setOption('text', { fontSize: +e.target.value })} className="w-full" />
+
+          <Field label="Size" htmlFor="tool-text-size" value={`${options.text.fontSize}pt`}>
+            <Slider
+              id="tool-text-size" min="6" max="72"
+              value={options.text.fontSize}
+              onChange={(e) => setOption('text', { fontSize: +e.target.value })}
+            />
           </Field>
-          <Field label="Colour">
-            <input type="color" value={options.text.color}
-                   onChange={(e) => setOption('text', { color: e.target.value })}
-                   className="w-full h-8 rounded-lg bg-alt-bg border border-border cursor-pointer" />
+
+          <Field label="Colour" htmlFor="tool-text-colour">
+            <ColorInput
+              id="tool-text-colour"
+              value={options.text.color}
+              onChange={(e) => setOption('text', { color: e.target.value })}
+            />
           </Field>
-          <p className="text-[11px] text-text-primary/50 leading-snug">Click the page to place a text box.</p>
+
+          <Note>Click the page to place a text box.</Note>
         </>
       )
 
     case 'draw':
       return (
         <>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Draw</h3>
-          <Field label="Colour">
-            <input type="color" value={options.draw.color}
-                   onChange={(e) => setOption('draw', { color: e.target.value })}
-                   className="w-full h-8 rounded-lg bg-alt-bg border border-border cursor-pointer" />
+          <Field label="Colour" htmlFor="tool-draw-colour">
+            <ColorInput
+              id="tool-draw-colour"
+              value={options.draw.color}
+              onChange={(e) => setOption('draw', { color: e.target.value })}
+            />
           </Field>
-          <Field label={`Thickness — ${options.draw.strokeWidth}px`}>
-            <input type="range" min="1" max="20" value={options.draw.strokeWidth}
-                   onChange={(e) => setOption('draw', { strokeWidth: +e.target.value })} className="w-full" />
+
+          <Field label="Thickness" htmlFor="tool-draw-width" value={`${options.draw.strokeWidth}px`}>
+            <Slider
+              id="tool-draw-width" min="1" max="20"
+              value={options.draw.strokeWidth}
+              onChange={(e) => setOption('draw', { strokeWidth: +e.target.value })}
+            />
           </Field>
-          <p className="text-[11px] text-text-primary/50 leading-snug">Click and drag on the page to draw.</p>
+
+          <Note>Click and drag on the page to draw.</Note>
         </>
       )
 
     case 'highlight':
       return (
         <>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Highlight</h3>
           <Field label="Colour">
-            <Swatches colors={HIGHLIGHT_COLORS} value={options.highlight.color} onChange={(c) => setOption('highlight', { color: c })} />
+            <Swatches
+              colors={HIGHLIGHT_COLORS}
+              value={options.highlight.color}
+              onChange={(c) => setOption('highlight', { color: c })}
+              name="Highlight colour"
+            />
           </Field>
-          <Field label={`Opacity — ${Math.round(options.highlight.opacity * 100)}%`}>
-            <input type="range" min="0.1" max="1" step="0.05" value={options.highlight.opacity}
-                   onChange={(e) => setOption('highlight', { opacity: +e.target.value })} className="w-full" />
+
+          <Field
+            label="Opacity"
+            htmlFor="tool-highlight-opacity"
+            value={`${Math.round(options.highlight.opacity * 100)}%`}
+          >
+            <Slider
+              id="tool-highlight-opacity" min="0.1" max="1" step="0.05"
+              value={options.highlight.opacity}
+              onChange={(e) => setOption('highlight', { opacity: +e.target.value })}
+            />
           </Field>
-          <p className="text-[11px] text-text-primary/50 leading-snug">Drag across the page to highlight an area.</p>
+
+          <Note>Drag across the page to highlight an area.</Note>
         </>
       )
 
     case 'stamp':
       return (
         <>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Shapes</h3>
           <Field label="Shape">
             <div className="grid grid-cols-5 gap-1">
               {SHAPES.map(s => (
-                <button
+                <ChoiceButton
                   key={s.id}
+                  dense
+                  selected={options.stamp.shape === s.id}
                   onClick={() => setOption('stamp', { shape: s.id })}
                   title={s.label}
-                  aria-pressed={options.stamp.shape === s.id}
-                  className={`aspect-square rounded-md border text-[9px] flex items-center justify-center ${
-                    options.stamp.shape === s.id ? 'border-accent bg-accent/10 text-accent' : 'border-border text-text-primary/60 hover:border-accent/50'
-                  }`}
+                  aria-label={s.label}
+                  className="aspect-square"
                 >
                   {s.label.slice(0, 4)}
-                </button>
+                </ChoiceButton>
               ))}
             </div>
           </Field>
-          <Field label="Stroke">
-            <input type="color" value={options.stamp.strokeColor}
-                   onChange={(e) => setOption('stamp', { strokeColor: e.target.value })}
-                   className="w-full h-8 rounded-lg bg-alt-bg border border-border cursor-pointer" />
+
+          <Field label="Stroke" htmlFor="tool-stamp-stroke">
+            <ColorInput
+              id="tool-stamp-stroke"
+              value={options.stamp.strokeColor}
+              onChange={(e) => setOption('stamp', { strokeColor: e.target.value })}
+            />
           </Field>
-          <Field label={`Stroke width — ${options.stamp.strokeWidth}px`}>
-            <input type="range" min="1" max="12" value={options.stamp.strokeWidth}
-                   onChange={(e) => setOption('stamp', { strokeWidth: +e.target.value })} className="w-full" />
+
+          <Field
+            label="Stroke width"
+            htmlFor="tool-stamp-width"
+            value={`${options.stamp.strokeWidth}px`}
+          >
+            <Slider
+              id="tool-stamp-width" min="1" max="12"
+              value={options.stamp.strokeWidth}
+              onChange={(e) => setOption('stamp', { strokeWidth: +e.target.value })}
+            />
           </Field>
+
           {FILLABLE_SHAPES.has(options.stamp.shape) && (
-            <Field label="Fill">
-              <div className="flex gap-2 items-center">
-                <input type="color" value={options.stamp.fillColor || '#ffffff'}
-                       onChange={(e) => setOption('stamp', { fillColor: e.target.value })}
-                       className="flex-1 h-8 rounded-lg bg-alt-bg border border-border cursor-pointer" />
-                <button onClick={() => setOption('stamp', { fillColor: '' })}
-                        className="px-2 py-1.5 text-[11px] rounded-lg border border-border hover:border-accent">
+            <Field label="Fill" htmlFor="tool-stamp-fill">
+              <div className="flex items-center gap-1.5">
+                <ColorInput
+                  id="tool-stamp-fill"
+                  value={options.stamp.fillColor || '#ffffff'}
+                  onChange={(e) => setOption('stamp', { fillColor: e.target.value })}
+                  className="flex-1"
+                />
+                <Button size="sm" onClick={() => setOption('stamp', { fillColor: '' })}>
                   None
-                </button>
+                </Button>
               </div>
             </Field>
           )}
+
           {FLIPPABLE_SHAPES.has(options.stamp.shape) && (
-            <label className="flex items-center gap-2 text-xs cursor-pointer">
-              <input type="checkbox" checked={options.stamp.flipped}
-                     onChange={(e) => setOption('stamp', { flipped: e.target.checked })} />
-              Flip direction
-            </label>
+            <Checkbox
+              label="Flip direction"
+              checked={options.stamp.flipped}
+              onChange={(e) => setOption('stamp', { flipped: e.target.checked })}
+            />
           )}
         </>
       )
@@ -192,39 +232,41 @@ function ToolSettings({ tool, options, setOption, signatures }) {
     case 'note':
       return (
         <>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Sticky note</h3>
           <Field label="Colour">
-            <Swatches colors={NOTE_COLORS} value={options.note.color} onChange={(c) => setOption('note', { color: c })} />
+            <Swatches
+              colors={NOTE_COLORS}
+              value={options.note.color}
+              onChange={(c) => setOption('note', { color: c })}
+              name="Note colour"
+            />
           </Field>
-          <p className="text-[11px] text-text-primary/50 leading-snug">Click the page to drop a note.</p>
+          <Note>Click the page to drop a note.</Note>
         </>
       )
 
     case 'signature':
-      return (
-        <>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Signature</h3>
-          {signatures.length === 0 ? (
-            <p className="text-[11px] text-text-primary/50 leading-snug">
-              No saved signatures yet. Create one to place it on the page.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {signatures.map(sig => (
-                <button
-                  key={sig.id}
-                  onClick={() => setOption('signature', { dataUrl: sig.dataUrl, aspect: sig.aspect })}
-                  aria-pressed={options.signature.dataUrl === sig.dataUrl}
-                  className={`w-full p-2 rounded-lg border bg-white ${
-                    options.signature.dataUrl === sig.dataUrl ? 'border-accent' : 'border-border hover:border-accent/50'
-                  }`}
-                >
-                  <img src={sig.dataUrl} alt="Saved signature" className="max-h-12 mx-auto object-contain" />
-                </button>
-              ))}
-            </div>
-          )}
-        </>
+      return signatures.length === 0 ? (
+        <EmptyState
+          icon={<Icon d={PEN_ICON} size={18} />}
+          title="No saved signatures"
+          line="Open the Sign tool to draw one, then come back to place it on the page."
+        />
+      ) : (
+        <div className="space-y-1.5">
+          {signatures.map((sig, i) => (
+            <PlateButton
+              key={sig.id}
+              className="w-full"
+              label={`Use signature ${i + 1}`}
+              selected={options.signature.dataUrl === sig.dataUrl}
+              onClick={() => setOption('signature', { dataUrl: sig.dataUrl, aspect: sig.aspect })}
+            >
+              {/* alt is empty because the button's own label names it; the
+                  image carries no information the label does not. */}
+              <img src={sig.dataUrl} alt="" className="max-h-12 mx-auto object-contain" />
+            </PlateButton>
+          ))}
+        </div>
       )
 
     case 'image':
@@ -232,25 +274,15 @@ function ToolSettings({ tool, options, setOption, signatures }) {
 
     case 'redact':
       return (
-        <>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Redact</h3>
-          <p className="text-[11px] text-text-primary/60 leading-snug">
-            Drag over anything you want removed. Marks are applied when you save —
-            the underlying text and images are deleted from the exported file, not
-            just covered.
-          </p>
-        </>
+        <Callout tone="danger" title="Redaction removes content">
+          Drag over anything you want removed. Marks are applied when you save —
+          the underlying text and images are deleted from the exported file, not
+          just covered.
+        </Callout>
       )
 
     case 'select':
-      return (
-        <>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Select</h3>
-          <p className="text-[11px] text-text-primary/50 leading-snug">
-            Drag to select text on the page, or click an annotation to edit it.
-          </p>
-        </>
-      )
+      return <Note>Drag to select text on the page, or click an annotation to edit it.</Note>
 
     default:
       return null
@@ -300,14 +332,9 @@ function ImageToolSettings({ options, setOption }) {
 
   return (
     <>
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Image</h3>
-
-      <button
-        onClick={() => inputRef.current?.click()}
-        className="w-full px-3 py-2 rounded-lg border border-border hover:border-accent text-sm transition-colors"
-      >
+      <Button variant="secondary" full onClick={() => inputRef.current?.click()}>
         {options.image.dataUrl ? 'Choose a different image' : 'Choose an image…'}
-      </button>
+      </Button>
       <input
         ref={inputRef}
         type="file"
@@ -318,27 +345,30 @@ function ImageToolSettings({ options, setOption }) {
 
       {options.image.dataUrl && (
         <>
-          <div className="p-2 rounded-lg bg-white border border-border">
+          <Plate>
             <img src={options.image.dataUrl} alt="Selected" className="max-h-24 mx-auto object-contain" />
-          </div>
-          <Field label={`Width — ${Math.round(options.image.width * 100)}% of page`}>
-            <input
-              type="range" min="0.05" max="1" step="0.01"
+          </Plate>
+          <Field
+            label="Width"
+            htmlFor="tool-image-width"
+            value={`${Math.round(options.image.width * 100)}% of page`}
+          >
+            <Slider
+              id="tool-image-width" min="0.05" max="1" step="0.01"
               value={options.image.width}
               onChange={(e) => setOption('image', { width: +e.target.value })}
-              className="w-full"
             />
           </Field>
         </>
       )}
 
-      {problem && <p className="text-[11px] text-negative leading-snug">{problem}</p>}
+      {problem && <p role="alert" className="text-[11px] leading-snug text-negative">{problem}</p>}
 
-      <p className="text-[11px] text-text-primary/50 leading-snug">
+      <Note>
         {options.image.dataUrl
           ? 'Click the page to place it.'
           : 'Pick an image first, then click the page to place it.'}
-      </p>
+      </Note>
     </>
   )
 }
@@ -351,19 +381,28 @@ function SelectedProperties({ ann, onChange }) {
 
   if (ann.type === 'text') {
     rows.push(
-      <Field key="font" label="Font">
-        <select value={ann.fontFamily || 'Helvetica'} onChange={(e) => onChange({ fontFamily: e.target.value }, 'Change font')} className={inputClass}>
+      <Field key="font" label="Font" htmlFor="selected-font">
+        <Select
+          id="selected-font"
+          value={ann.fontFamily || 'Helvetica'}
+          onChange={(e) => onChange({ fontFamily: e.target.value }, 'Change font')}
+        >
           {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
-        </select>
+        </Select>
       </Field>,
-      <Field key="size" label={`Size — ${ann.fontSize || 14}pt`}>
-        <input type="range" min="6" max="72" value={ann.fontSize || 14}
-               onChange={(e) => onChange({ fontSize: +e.target.value }, 'Change size')} className="w-full" />
+      <Field key="size" label="Size" htmlFor="selected-size" value={`${ann.fontSize || 14}pt`}>
+        <Slider
+          id="selected-size" min="6" max="72"
+          value={ann.fontSize || 14}
+          onChange={(e) => onChange({ fontSize: +e.target.value }, 'Change size')}
+        />
       </Field>,
-      <Field key="colour" label="Colour">
-        <input type="color" value={ann.color || '#000000'}
-               onChange={(e) => onChange({ color: e.target.value }, 'Change colour')}
-               className="w-full h-8 rounded-lg bg-alt-bg border border-border cursor-pointer" />
+      <Field key="colour" label="Colour" htmlFor="selected-colour">
+        <ColorInput
+          id="selected-colour"
+          value={ann.color || '#000000'}
+          onChange={(e) => onChange({ color: e.target.value }, 'Change colour')}
+        />
       </Field>,
     )
   }
@@ -371,14 +410,19 @@ function SelectedProperties({ ann, onChange }) {
   if (ann.type === 'draw' || ann.type === 'stamp') {
     const key = ann.type === 'draw' ? 'color' : 'strokeColor'
     rows.push(
-      <Field key="stroke" label="Stroke">
-        <input type="color" value={ann[key] || '#000000'}
-               onChange={(e) => onChange({ [key]: e.target.value }, 'Change colour')}
-               className="w-full h-8 rounded-lg bg-alt-bg border border-border cursor-pointer" />
+      <Field key="stroke" label="Stroke" htmlFor="selected-stroke">
+        <ColorInput
+          id="selected-stroke"
+          value={ann[key] || '#000000'}
+          onChange={(e) => onChange({ [key]: e.target.value }, 'Change colour')}
+        />
       </Field>,
-      <Field key="width" label={`Width — ${ann.strokeWidth || 2}px`}>
-        <input type="range" min="1" max="20" value={ann.strokeWidth || 2}
-               onChange={(e) => onChange({ strokeWidth: +e.target.value }, 'Change width')} className="w-full" />
+      <Field key="width" label="Width" htmlFor="selected-width" value={`${ann.strokeWidth || 2}px`}>
+        <Slider
+          id="selected-width" min="1" max="20"
+          value={ann.strokeWidth || 2}
+          onChange={(e) => onChange({ strokeWidth: +e.target.value }, 'Change width')}
+        />
       </Field>,
     )
   }
@@ -390,6 +434,7 @@ function SelectedProperties({ ann, onChange }) {
           colors={ann.type === 'note' ? NOTE_COLORS : HIGHLIGHT_COLORS}
           value={ann.color}
           onChange={(c) => onChange({ color: c }, 'Change colour')}
+          name={ann.type === 'note' ? 'Note colour' : 'Highlight colour'}
         />
       </Field>,
     )
@@ -397,12 +442,12 @@ function SelectedProperties({ ann, onChange }) {
 
   if (ann.type === 'note') {
     rows.push(
-      <Field key="text" label="Note text">
-        <textarea
+      <Field key="text" label="Note text" htmlFor="selected-note-text">
+        <TextArea
+          id="selected-note-text"
           value={ann.text || ''}
           onChange={(e) => onChange({ text: e.target.value }, 'Edit note')}
           rows={4}
-          className={`${inputClass} resize-y`}
         />
       </Field>,
     )
@@ -410,12 +455,20 @@ function SelectedProperties({ ann, onChange }) {
 
   if (ann.type !== 'redact') {
     rows.push(
-      <Field key="opacity" label={`Opacity — ${Math.round((ann.opacity ?? 1) * 100)}%`}>
-        <input type="range" min="0.05" max="1" step="0.05" value={ann.opacity ?? 1}
-               onChange={(e) => onChange({ opacity: +e.target.value }, 'Change opacity')} className="w-full" />
+      <Field
+        key="opacity"
+        label="Opacity"
+        htmlFor="selected-opacity"
+        value={`${Math.round((ann.opacity ?? 1) * 100)}%`}
+      >
+        <Slider
+          id="selected-opacity" min="0.05" max="1" step="0.05"
+          value={ann.opacity ?? 1}
+          onChange={(e) => onChange({ opacity: +e.target.value }, 'Change opacity')}
+        />
       </Field>,
     )
   }
 
-  return <div className="space-y-4">{rows}</div>
+  return <div className="space-y-3">{rows}</div>
 }

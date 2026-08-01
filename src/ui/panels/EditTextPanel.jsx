@@ -1,6 +1,12 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useEditor } from '../../state/useEditor'
 import { SHRINK_FLOOR } from '../../textedit/textBlocks'
+import { plural } from './panelFormat'
+import {
+  Button, Callout, Checkbox, EmptyState, Field, Icon, Panel, SectionHeading,
+  Select, Slider,
+} from '../primitives'
+import { ChoiceButton, ColorInput, Note } from './panelParts'
 
 const FONTS = ['Helvetica', 'TimesRoman', 'Courier']
 const ALIGNMENTS = [
@@ -10,14 +16,8 @@ const ALIGNMENTS = [
 ]
 const NONE = []
 
-const inputClass = 'w-full px-2 py-1.5 rounded-lg bg-alt-bg border border-border text-sm focus:outline-none focus:border-accent'
-
-const Field = ({ label, children }) => (
-  <label className="block">
-    <span className="block text-[11px] uppercase tracking-wide text-text-primary/50 mb-1.5">{label}</span>
-    {children}
-  </label>
-)
+const CURSOR_ICON =
+  'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z'
 
 /**
  * Settings and limits for editing text that is already in the PDF.
@@ -38,8 +38,8 @@ export default function EditTextPanel() {
     [targetPageIds, state.textEdits],
   )
   const scopeLabel = targetPageIds.length === state.pages.length
-    ? `all ${state.pages.length} page${state.pages.length === 1 ? '' : 's'}`
-    : `${targetPageIds.length} selected page${targetPageIds.length === 1 ? '' : 's'}`
+    ? `all ${plural(state.pages.length, 'page')}`
+    : `${plural(targetPageIds.length, 'selected page')}`
 
   const updateEdit = useCallback((editId, patch, label) => {
     commit(label, next => {
@@ -64,107 +64,99 @@ export default function EditTextPanel() {
   }, [commit, targetPageIds])
 
   return (
-    <div className="w-64 bg-dark-bg border-l border-border flex flex-col shrink-0 overflow-auto">
-      <div className="p-3 space-y-4">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-accent">Edit text</h3>
-        <p className="text-[11px] text-text-primary/60 leading-snug">
-          Click any paragraph on the page to retype it. Changes appear on the page
-          straight away and are written when you save.
-        </p>
+    <Panel title="Edit text">
+      <Note>
+        Click any paragraph on the page to retype it. Changes appear on the page
+        straight away and are written when you save.
+      </Note>
 
-        <Limits />
+      {/* Every limit this technique has, said once, before it costs anyone
+          anything. One Callout rather than six: they are all the same fact —
+          a PDF is a fixed layout and its fonts are not ours. */}
+      <Callout tone="warning" title="What this cannot do">
+        <ul className="list-disc pl-4 space-y-1">
+          <li>
+            Replacement text is drawn in Helvetica, Times or Courier. PDFs usually
+            embed their own fonts, and those cannot be reproduced here, so edited
+            text will not always match the letterforms around it.
+          </li>
+          <li>
+            A PDF cannot reflow. The text around an edit will not move aside, so
+            anything longer than the original is shrunk to fit — down to{' '}
+            {Math.round(SHRINK_FLOOR * 100)}% of its size. Past that it overlaps
+            what follows rather than being cut off, so nothing you typed is lost.
+          </li>
+          <li>Only Latin characters can be drawn; anything else exports as a question mark.</li>
+          <li>
+            The original text is covered, not deleted, and can still be recovered
+            from the file. Use Redact to remove content for good.
+          </li>
+          <li>
+            Only text that reads left to right on screen is detected. Vertical
+            writing, and pages you have turned or flipped, are skipped — rotate
+            them back upright to edit.
+          </li>
+          <li>Scanned pages hold no text to edit. Run OCR on them first.</li>
+        </ul>
+      </Callout>
 
-        <div className="pt-4 border-t border-border space-y-3">
-          <div className="flex items-baseline justify-between gap-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wide text-accent">This page</h4>
-            <span className="text-[11px] text-text-primary/50">
-              {pageEdits.length} edit{pageEdits.length === 1 ? '' : 's'}
-            </span>
-          </div>
+      <div className="space-y-1.5 border-t border-border pt-3">
+        <SectionHeading
+          action={<span className="text-[11px] tabular-nums text-text-subtle">{plural(pageEdits.length, 'edit')}</span>}
+        >
+          This page
+        </SectionHeading>
 
-          {pageEdits.length === 0 ? (
-            <p className="text-[11px] text-text-primary/50 leading-snug">
-              Nothing edited on this page yet.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {pageEdits.map(edit => (
-                <li key={edit.id} className="rounded-lg border border-border overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setOpenId(prev => (prev === edit.id ? null : edit.id))}
-                    aria-expanded={openId === edit.id}
-                    className="w-full text-left px-2 py-1.5 bg-alt-bg hover:bg-section-bg"
-                  >
-                    <span className="block text-[11px] truncate">
-                      {edit.newText.trim() || <em className="text-text-primary/50">(removed)</em>}
-                    </span>
-                    <span className="block text-[10px] text-text-primary/45 truncate line-through">
-                      {edit.originalText}
-                    </span>
-                  </button>
+        {pageEdits.length === 0 ? (
+          <EmptyState
+            icon={<Icon d={CURSOR_ICON} size={18} />}
+            title="Nothing edited on this page"
+            line="Click a paragraph on the page to retype it."
+          />
+        ) : (
+          <ul className="space-y-1.5">
+            {pageEdits.map(edit => (
+              <li key={edit.id} className="rounded-[var(--ui-radius)] border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setOpenId(prev => (prev === edit.id ? null : edit.id))}
+                  aria-expanded={openId === edit.id}
+                  className="w-full text-left px-2 py-1.5 bg-alt-bg hover:bg-section-bg active:bg-header-bg transition-colors"
+                >
+                  <span className="block text-[11px] text-text-primary truncate">
+                    {edit.newText.trim() || <em className="text-text-subtle">(removed)</em>}
+                  </span>
+                  <span className="block text-[11px] text-text-subtle truncate line-through">
+                    {edit.originalText}
+                  </span>
+                </button>
 
-                  {openId === edit.id && (
-                    <EditControls
-                      edit={edit}
-                      onChange={(patch, label) => updateEdit(edit.id, patch, label)}
-                      onRemove={() => removeEdit(edit.id)}
-                    />
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="pt-4 border-t border-border space-y-2">
-          <p className="text-[11px] text-text-primary/50 leading-snug">
-            {targetTotal} edit{targetTotal === 1 ? '' : 's'} across {scopeLabel}.
-          </p>
-          <button
-            type="button"
-            onClick={clearTargets}
-            disabled={targetTotal === 0}
-            className="w-full px-2 py-1.5 rounded-lg border border-border text-[11px] text-negative
-                       hover:border-negative disabled:opacity-40 disabled:hover:border-border"
-          >
-            Restore original text on {scopeLabel}
-          </button>
-        </div>
+                {openId === edit.id && (
+                  <EditControls
+                    edit={edit}
+                    onChange={(patch, label) => updateEdit(edit.id, patch, label)}
+                    onRemove={() => removeEdit(edit.id)}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-    </div>
-  )
-}
 
-// ---------------------------------------------------------------------------
-
-/** What this technique cannot do, said once, before it costs anyone anything. */
-function Limits() {
-  return (
-    <ul className="space-y-1.5 text-[11px] text-text-primary/60 leading-snug list-disc pl-4">
-      <li>
-        Replacement text is drawn in Helvetica, Times or Courier. PDFs usually
-        embed their own fonts, and those cannot be reproduced here, so edited
-        text will not always match the letterforms around it.
-      </li>
-      <li>
-        A PDF cannot reflow. The text around an edit will not move aside, so
-        anything longer than the original is shrunk to fit — down to{' '}
-        {Math.round(SHRINK_FLOOR * 100)}% of its size. Past that it overlaps what
-        follows rather than being cut off, so nothing you typed is lost.
-      </li>
-      <li>Only Latin characters can be drawn; anything else exports as a question mark.</li>
-      <li>
-        The original text is covered, not deleted, and can still be recovered
-        from the file. Use Redact to remove content for good.
-      </li>
-      <li>
-        Only text that reads left to right on screen is detected. Vertical
-        writing, and pages you have turned or flipped, are skipped — rotate them
-        back upright to edit.
-      </li>
-      <li>Scanned pages hold no text to edit. Run OCR on them first.</li>
-    </ul>
+      <div className="space-y-1.5 border-t border-border pt-3">
+        <Note>{plural(targetTotal, 'edit')} across {scopeLabel}.</Note>
+        <Button
+          variant="danger"
+          full
+          disabled={targetTotal === 0}
+          title={targetTotal === 0 ? 'Nothing has been edited in scope' : undefined}
+          onClick={clearTargets}
+        >
+          Restore original text on {scopeLabel}
+        </Button>
+      </div>
+    </Panel>
   )
 }
 
@@ -172,95 +164,79 @@ function Limits() {
 
 /** Per-edit appearance. Detected from the original, overridable here. */
 function EditControls({ edit, onChange, onRemove }) {
+  const id = (part) => `text-edit-${edit.id}-${part}`
+
   return (
     <div className="p-2 space-y-3 bg-dark-bg border-t border-border">
-      <Field label="Font">
-        <select
+      <Field label="Font" htmlFor={id('font')}>
+        <Select
+          id={id('font')}
           value={edit.fontFamily || 'Helvetica'}
           onChange={(e) => onChange({ fontFamily: e.target.value }, 'Change font')}
-          className={inputClass}
         >
           {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
-        </select>
+        </Select>
       </Field>
 
       <div className="flex gap-3">
-        <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
-          <input
-            type="checkbox"
-            checked={Boolean(edit.bold)}
-            onChange={(e) => onChange({ bold: e.target.checked }, 'Change weight')}
-          />
-          Bold
-        </label>
-        <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
-          <input
-            type="checkbox"
-            checked={Boolean(edit.italic)}
-            onChange={(e) => onChange({ italic: e.target.checked }, 'Change style')}
-          />
-          Italic
-        </label>
+        <Checkbox
+          label="Bold"
+          checked={Boolean(edit.bold)}
+          onChange={(e) => onChange({ bold: e.target.checked }, 'Change weight')}
+        />
+        <Checkbox
+          label="Italic"
+          checked={Boolean(edit.italic)}
+          onChange={(e) => onChange({ italic: e.target.checked }, 'Change style')}
+        />
       </div>
 
-      <Field label={`Size — ${(edit.fontSize || 0).toFixed(1)}pt`}>
-        <input
-          type="range" min="4" max="72" step="0.5"
+      <Field label="Size" htmlFor={id('size')} value={`${(edit.fontSize || 0).toFixed(1)}pt`}>
+        <Slider
+          id={id('size')} min="4" max="72" step="0.5"
           value={edit.fontSize || 11}
           onChange={(e) => onChange({ fontSize: +e.target.value }, 'Change size')}
-          className="w-full"
         />
       </Field>
 
-      <Field label="Colour">
-        <input
-          type="color"
+      <Field label="Colour" htmlFor={id('colour')}>
+        <ColorInput
+          id={id('colour')}
           value={edit.color || '#000000'}
           onChange={(e) => onChange({ color: e.target.value }, 'Change colour')}
-          className="w-full h-8 rounded-lg bg-alt-bg border border-border cursor-pointer"
         />
       </Field>
 
-      <Field label="Background">
-        <input
-          type="color"
+      <Field
+        label="Background"
+        htmlFor={id('background')}
+        hint="Sampled from the page behind the original text. Adjust it if the patch shows against the paper."
+      >
+        <ColorInput
+          id={id('background')}
           value={edit.background || '#FFFFFF'}
           onChange={(e) => onChange({ background: e.target.value }, 'Change background')}
-          className="w-full h-8 rounded-lg bg-alt-bg border border-border cursor-pointer"
         />
       </Field>
-      <p className="text-[10px] text-text-primary/45 leading-snug">
-        Sampled from the page behind the original text. Adjust it if the patch
-        shows against the paper.
-      </p>
 
       <Field label="Alignment">
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-3 gap-1" role="group" aria-label="Alignment">
           {ALIGNMENTS.map(a => (
-            <button
+            <ChoiceButton
               key={a.id}
-              type="button"
+              dense
+              selected={(edit.align || 'left') === a.id}
               onClick={() => onChange({ align: a.id }, 'Change alignment')}
-              aria-pressed={(edit.align || 'left') === a.id}
-              className={`py-1 rounded-md border text-[10px] ${
-                (edit.align || 'left') === a.id
-                  ? 'border-accent bg-accent/10 text-accent'
-                  : 'border-border text-text-primary/60 hover:border-accent/50'
-              }`}
             >
               {a.label}
-            </button>
+            </ChoiceButton>
           ))}
         </div>
       </Field>
 
-      <button
-        type="button"
-        onClick={onRemove}
-        className="text-[11px] text-negative hover:underline"
-      >
+      <Button variant="danger" full size="sm" onClick={onRemove}>
         Restore original text
-      </button>
+      </Button>
     </div>
   )
 }

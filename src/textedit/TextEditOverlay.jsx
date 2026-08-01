@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useEditor } from '../state/useEditor'
 import { displaySize, uid } from '../state/documentModel'
 import { getBaseFontCSS } from '../utils/richTextUtils'
+import { Button } from '../ui/primitives'
 import {
   extractTextBlocks, sampleBlockAppearance, layoutTextInBox, cssTextMeasurer,
 } from './textBlocks'
@@ -145,14 +146,19 @@ export default function TextEditOverlay({ page, width, height }) {
   return (
     <div className="absolute inset-0 z-10 pointer-events-none">
       {editing && !draft && blocks.map(block => (
+        // Detection outline. accent-soft-border rather than accent because this
+        // is drawn on paper, which stays white in both themes — the same call
+        // AnnotationLayer's placement preview makes. The focus ring comes from
+        // the global :focus-visible rule; overriding it here is what left this
+        // surface with no keyboard indication.
         <button
           key={block.id}
           type="button"
           onClick={() => startEditing(block)}
           aria-label={`Edit text: ${block.text.slice(0, 60)}`}
-          className="absolute pointer-events-auto cursor-text rounded-[2px] border border-dashed
-                     border-transparent hover:border-accent hover:bg-accent/10
-                     focus-visible:outline-2 focus-visible:outline-accent"
+          className="absolute pointer-events-auto cursor-text rounded-[var(--ui-radius-sm)]
+                     border border-dashed border-transparent transition-colors
+                     hover:border-accent-soft-border hover:bg-accent-soft-border/20"
           style={{
             left: `${block.rect.x * 100}%`,
             top: `${block.rect.y * 100}%`,
@@ -187,9 +193,12 @@ export default function TextEditOverlay({ page, width, height }) {
         />
       )}
 
+      {/* Sits on the page rather than in the panel, so it carries a chrome
+          surface of its own — the semantic text steps are measured against the
+          ramp, not against paper. */}
       {editing && scanned && blocks.length === 0 && (
-        <p className="absolute top-2 left-2 px-2 py-1 rounded-md bg-dark-bg/90 border border-border
-                      text-[11px] text-text-primary/70">
+        <p className="absolute top-2 left-2 px-2 py-1 rounded-[var(--ui-radius-sm)] bg-dark-bg
+                      border border-border text-[11px] leading-snug text-text-primary">
           No editable text found on this page.
         </p>
       )}
@@ -217,7 +226,7 @@ function EditPreview({ edit, layout, hidden, outlined, pageHeight, scale }) {
   return (
     <>
       <div
-        className={`absolute ${outlined ? 'outline outline-1 outline-accent/40' : ''}`}
+        className={`absolute ${outlined ? 'outline outline-1 outline-accent-soft-border' : ''}`}
         style={{
           left: `${edit.rect.x * 100}%`,
           top: `${edit.rect.y * 100}%`,
@@ -279,7 +288,13 @@ function InlineEditor({ draft, onChange, onApply, onCancel, onKeyDown, pageWidth
         onKeyDown={onKeyDown}
         aria-label="Replacement text"
         spellCheck={false}
-        className="block w-full p-0 m-0 resize-none rounded-[2px] border border-accent shadow-lg focus:outline-none"
+        // Not the TextArea primitive: this one has to paint itself in the
+        // page's own colours and sit exactly where the original text does, so
+        // the surface, type and metrics all come from the block being edited.
+        // It genuinely floats over the page, so it takes a shadow token. No
+        // focus:outline-none — the global ring is the only keyboard indication
+        // this surface has.
+        className="block w-full p-0 m-0 resize-none rounded-[var(--ui-radius-sm)] border border-accent-soft-border shadow-[var(--theme-shadow-md)]"
         style={{
           height: boxHeight,
           fontFamily: getBaseFontCSS(block.fontFamily),
@@ -292,24 +307,16 @@ function InlineEditor({ draft, onChange, onApply, onCancel, onKeyDown, pageWidth
           background: draft.background,
         }}
       />
-      <div className="mt-1 flex items-center gap-1.5">
-        <button
-          type="button"
-          onMouseDown={keepFocus}
-          onClick={onApply}
-          className="px-2 py-0.5 rounded-md bg-accent-strong text-on-accent text-[11px] font-medium"
-        >
+      {/* The toolbar sits on the page, so it carries its own chrome surface —
+          the text steps are measured against the ramp, not against paper. */}
+      <div className="mt-1 flex items-center gap-1.5 w-fit px-1.5 py-1 rounded-[var(--ui-radius-sm)] bg-dark-bg border border-border shadow-[var(--theme-shadow-md)]">
+        <Button size="sm" variant="primary" onMouseDown={keepFocus} onClick={onApply}>
           Apply
-        </button>
-        <button
-          type="button"
-          onMouseDown={keepFocus}
-          onClick={onCancel}
-          className="px-2 py-0.5 rounded-md bg-dark-bg border border-border text-[11px]"
-        >
+        </Button>
+        <Button size="sm" variant="secondary" onMouseDown={keepFocus} onClick={onCancel}>
           Cancel
-        </button>
-        <span className="px-1 rounded bg-dark-bg/90 text-[10px] text-text-primary/60">
+        </Button>
+        <span className="text-[11px] leading-snug text-text-subtle whitespace-nowrap">
           Ctrl+Enter applies, Esc cancels
         </span>
       </div>
